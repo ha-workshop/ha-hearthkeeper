@@ -322,6 +322,7 @@ ha-hearthkeeper/
 │   ├── brain.py              # conversation, команды, режимы ответа
 │   ├── brief.py              # брифинг: календарь, погода, дом, покупки, почта
 │   ├── shop.py               # /shop и inline-кнопки
+│   ├── stats.py              # счётчики для diagnostics
 │   ├── store.py
 │   ├── diagnostics.py
 │   ├── services.yaml

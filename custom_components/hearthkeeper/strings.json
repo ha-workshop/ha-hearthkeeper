@@ -67,7 +67,7 @@
   "services": {
     "say": {
       "name": "Say",
-      "description": "Send a text message to a Telegram chat through Hearthkeeper.",
+      "description": "Send a text or voice message to a Telegram chat through Hearthkeeper.",
       "fields": {
         "chat_id": {
           "name": "Chat ID",
@@ -75,11 +75,11 @@
         },
         "text": {
           "name": "Text",
-          "description": "Message to send. It is sent as plain text."
+          "description": "Message to send. It is spoken when the mode is voice or both."
         },
         "mode": {
           "name": "Mode",
-          "description": "Reply mode kept for voice support. Text is always sent in this version."
+          "description": "Text, voice or both. Defaults to the reply mode of the chat."
         }
       }
     },

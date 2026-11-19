@@ -5,4 +5,6 @@ __pycache__/
 .venv/
 .venv-test/
 .DS_Store
+.coverage
+.idea/
 *.egg-info/

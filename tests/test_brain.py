@@ -42,9 +42,12 @@ class FakeTransport:
     def __init__(self) -> None:
         """Initialise the recorder."""
         self.sent: list[tuple[int, str]] = []
+        self.keyboards: list[list[list[list[str]]] | None] = []
         self.actions: list[tuple[int, str]] = []
         self.downloaded: list[tuple[str, str]] = []
         self.voices: list[tuple[int, str]] = []
+        self.edited: list[tuple[int, int, str]] = []
+        self.answered: list[tuple[str | None, str]] = []
 
     async def async_send_text(
         self,
@@ -53,9 +56,11 @@ class FakeTransport:
         *,
         thread_id: int | None = None,
         reply_to: int | None = None,
+        keyboard: list[list[list[str]]] | None = None,
     ) -> int | None:
         """Record a reply."""
         self.sent.append((chat_id, text))
+        self.keyboards.append(keyboard)
         return 1
 
     async def async_send_chat_action(
@@ -80,6 +85,23 @@ class FakeTransport:
         """Record a voice note."""
         self.voices.append((chat_id, file_path))
         return True
+
+    async def async_edit_message(
+        self,
+        chat_id: int,
+        message_id: int,
+        text: str,
+        keyboard: list[list[list[str]]] | None = None,
+    ) -> bool:
+        """Record an edit."""
+        self.edited.append((chat_id, message_id, text))
+        return True
+
+    async def async_answer_callback(
+        self, callback_id: str | None, text: str = ""
+    ) -> None:
+        """Record an answered callback."""
+        self.answered.append((callback_id, text))
 
 
 def _message(text: str, **kwargs: Any) -> IncomingMessage:
@@ -466,3 +488,157 @@ async def test_scheduled_briefing_skips_groups(
     await brain.async_send_briefing()
 
     assert transport.sent == [(42, "Сводка дня")]
+
+
+def _callback(data: str, message_id: int = 99) -> IncomingMessage:
+    return IncomingMessage(
+        kind=MessageKind.CALLBACK,
+        chat_id=42,
+        message_id=message_id,
+        callback_id="777",
+        callback_data=data,
+    )
+
+
+def _agents(hass: HomeAssistant) -> None:
+    hass.states.async_set(
+        "conversation.home", "unknown", {"friendly_name": "Home Assistant"}
+    )
+    hass.states.async_set("conversation.qwen", "unknown", {"friendly_name": "Qwen"})
+    hass.states.async_set("conversation.off", "unavailable", {"friendly_name": "Off"})
+
+
+async def test_model_lists_agents_with_buttons(hass: HomeAssistant) -> None:
+    """``/model`` shows every agent and marks the current one."""
+    _agents(hass)
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(
+        _message("/model", kind=MessageKind.COMMAND, command="/model", args=())
+    )
+
+    assert "Сейчас: Home Assistant" in transport.sent[0][1]
+    keyboard = transport.keyboards[0]
+    assert keyboard is not None
+    assert keyboard[0][0] == ["✅ Home Assistant", "hk_agent:0"]
+    assert keyboard[1][0] == ["Qwen", "hk_agent:1"]
+    assert keyboard[2][0][1] == "hk_agent:default"
+
+
+async def test_model_callback_switches_agent(hass: HomeAssistant) -> None:
+    """A tap switches the agent and starts a new conversation."""
+    _agents(hass)
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+    chat = brain._chats.get(42)
+    chat.conversation_id = "old-context"
+
+    await brain.async_handle(
+        _message("/model", kind=MessageKind.COMMAND, command="/model", args=())
+    )
+    await brain.async_handle(_callback("hk_agent:1"))
+
+    assert transport.answered == [("777", "")]
+    assert transport.edited == [(42, 99, "Агент: Qwen. Начал новый разговор.")]
+    assert chat.agent_id == "conversation.qwen"
+    assert chat.conversation_id == "tg:42"
+
+
+async def test_model_callback_default(hass: HomeAssistant) -> None:
+    """The default row clears the per-chat override."""
+    _agents(hass)
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+    brain._chats.get(42).agent_id = "conversation.qwen"
+
+    await brain.async_handle(_callback("hk_agent:default"))
+
+    assert brain._chats.get(42).agent_id is None
+    assert transport.edited[0][2].startswith("Вернул агента")
+
+
+async def test_model_callback_is_stale(hass: HomeAssistant) -> None:
+    """A button from an old session explains itself instead of failing."""
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(_callback("hk_agent:5"))
+
+    assert transport.answered == [("777", "Список устарел, откройте /model заново.")]
+    assert transport.edited == []
+
+
+async def test_model_switch_by_name(hass: HomeAssistant) -> None:
+    """``/model <name>`` works without buttons."""
+    _agents(hass)
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(
+        _message(
+            "/model Qwen",
+            kind=MessageKind.COMMAND,
+            command="/model",
+            args=("Qwen",),
+        )
+    )
+
+    assert brain._chats.get(42).agent_id == "conversation.qwen"
+    assert "Агент: Qwen" in transport.sent[0][1]
+
+
+async def test_model_unknown_name(hass: HomeAssistant) -> None:
+    """An unknown name keeps the current agent."""
+    _agents(hass)
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(
+        _message(
+            "/model nope",
+            kind=MessageKind.COMMAND,
+            command="/model",
+            args=("nope",),
+        )
+    )
+
+    assert brain._chats.get(42).agent_id is None
+    assert "Не понял" in transport.sent[0][1]
+
+
+async def test_say_service_defaults_to_chat_mode(hass: HomeAssistant) -> None:
+    """``hearthkeeper.say`` without a mode follows the chat."""
+    transport = FakeTransport()
+    brain = _brain(hass, transport, reply_mode="text")
+
+    await brain.async_say(42, "Проверка")
+
+    assert transport.sent == [(42, "Проверка")]
+    assert transport.voices == []
+
+
+async def test_say_service_can_speak(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``mode: voice`` speaks even when the chat prefers text."""
+
+    async def _stage(hass_: HomeAssistant, pipeline: Any, text: str) -> Path:
+        return Path("/media/hearthkeeper/say.ogg")
+
+    discarded: list[Path] = []
+
+    async def _discard(hass_: HomeAssistant, path: Path) -> None:
+        discarded.append(path)
+
+    monkeypatch.setattr(brain_module, "async_stage_voice_reply", _stage)
+    monkeypatch.setattr(brain_module, "async_discard_file", _discard)
+
+    transport = FakeTransport()
+    brain = _brain(hass, transport, reply_mode="text")
+
+    await brain.async_say(42, "Проверка", "voice")
+
+    assert transport.voices == [(42, "/media/hearthkeeper/say.ogg")]
+    assert transport.sent == []
+    assert discarded == [Path("/media/hearthkeeper/say.ogg")]

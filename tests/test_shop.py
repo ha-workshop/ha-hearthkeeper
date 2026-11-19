@@ -175,3 +175,61 @@ async def test_foreign_callback_is_ignored(hass: HomeAssistant) -> None:
     assert handled is False
     assert transport.answered == []
     assert transport.edited == []
+
+
+async def test_shop_del_asks_for_confirmation(hass: HomeAssistant) -> None:
+    """Deleting is confirmed with inline buttons, not done at once."""
+    transport = FakeTransport()
+    calls = _todo_services(hass, [ITEM_A])
+    skill = _skill(hass, transport, "todo.inbox")
+
+    await skill.async_handle_command(_command("del", "молоко"), "ru")
+
+    assert calls == []
+    assert transport.sent[0]["text"] == "Удалить «молоко» из списка?"
+    keyboard = transport.sent[0]["keyboard"]
+    assert keyboard is not None
+    assert keyboard[0][0][1].startswith("shop_del_yes:")
+    assert keyboard[0][1][1].startswith("shop_del_no:")
+
+
+async def test_shop_del_confirmed_removes_item(hass: HomeAssistant) -> None:
+    """The yes button removes the item and rewrites the question."""
+    transport = FakeTransport()
+    calls = _todo_services(hass, [ITEM_A])
+    skill = _skill(hass, transport, "todo.inbox")
+
+    await skill.async_handle_command(_command("del", "молоко"), "ru")
+    payload = transport.sent[0]["keyboard"][0][0][1]
+    handled = await skill.async_handle_callback(_callback(payload), "ru")
+
+    assert handled is True
+    assert transport.answered == ["555"]
+    assert calls[0]["item"] == "молоко"
+    assert transport.edited[0]["text"] == "🗑 Удалено: молоко"
+
+
+async def test_shop_del_cancelled(hass: HomeAssistant) -> None:
+    """The no button keeps the item."""
+    transport = FakeTransport()
+    calls = _todo_services(hass, [ITEM_A])
+    skill = _skill(hass, transport, "todo.inbox")
+
+    await skill.async_handle_command(_command("del", "молоко"), "ru")
+    payload = transport.sent[0]["keyboard"][0][1][1]
+    await skill.async_handle_callback(_callback(payload), "ru")
+
+    assert calls == []
+    assert transport.edited[0]["text"] == "Отменено."
+
+
+async def test_shop_del_expired_token(hass: HomeAssistant) -> None:
+    """A button after a restart cannot delete anything."""
+    transport = FakeTransport()
+    calls = _todo_services(hass, [ITEM_A])
+    skill = _skill(hass, transport, "todo.inbox")
+
+    await skill.async_handle_callback(_callback("shop_del_yes:deadbeef"), "ru")
+
+    assert calls == []
+    assert "устарела" in transport.edited[0]["text"]

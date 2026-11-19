@@ -14,9 +14,9 @@ replies through `telegram_bot` services.
 |---|---|---|
 | M0 | config flow, transport, text replies, `/help`, `/new`, `/voice` | ✅ |
 | M1 | voice input: Telegram OGG → WAV → Assist pipeline | ✅ |
-| M2 | voice output, groups, dedup across restarts | 🚧 |
-| M3 | briefing from calendar, weather, mail, todo and house state | 🚧 |
-| M4 | `/model`, inline buttons, diagnostics, packaging | ⏳ |
+| M2 | voice output, groups, dedup across restarts | ✅ |
+| M3 | briefing from calendar, weather, mail, todo and house state | ✅ |
+| M4 | `/model`, inline buttons, diagnostics, packaging | 🚧 |
 
 ## Requirements
 
@@ -42,9 +42,9 @@ replies through `telegram_bot` services.
 | `/voice on` | Voice replies (needs a pipeline with TTS) |
 | `/voice off` | Text replies |
 | `/voice both` | Text and voice |
-| `/shop` | Shopping list from a `todo` entity (tap to tick off) |
+| `/shop` | Shopping list from a `todo` entity (tap to tick off, `/shop del` asks first) |
 | `/brief` | Daily briefing: weather, calendar, house, shopping list, mail |
-| `/model` | Switch the agent (M4) |
+| `/model` | Switch the conversation agent for this chat (buttons or `/model <name>`) |
 
 ## Briefing
 
@@ -84,6 +84,13 @@ data:
   the agent you choose.
 - Source audio and mail content are only logged at `DEBUG`, and never with
   content.
+
+## Diagnostics
+
+**Settings → Devices & services → Hearthkeeper → ⋮ → Download diagnostics**
+returns counters, entity ids and settings — never message texts, chat ids,
+audio, mail or calendar contents. It is the fastest way to attach context to a
+bug report.
 
 ## License
 

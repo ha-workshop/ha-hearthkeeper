@@ -22,6 +22,7 @@ from .const import (
     VOICE_DOWNLOAD_LIMIT,
 )
 from .shop import ShopSkill
+from .stats import RuntimeStats
 from .store import ChatContext, ChatStore
 from .transport import IncomingMessage, MessageKind, Transport, strip_bot_mention
 from .voice import (
@@ -65,7 +66,18 @@ TEXTS: dict[str, dict[str, str]] = {
             "Голосовое сообщение слишком длинное. Максимум — {seconds} с."
         ),
         "voice_too_big": "Файл слишком большой для расшифровки.",
-        "model_soon": "Смена агента появится в следующем обновлении.",
+        "model_header": "Выберите агента разговора для этого чата.",
+        "model_current": "Сейчас: {name}",
+        "model_default": "Как в пайплайне",
+        "model_set": "Агент: {name}. Начал новый разговор.",
+        "model_reset": "Вернул агента из пайплайна. Начал новый разговор.",
+        "model_none": (
+            "Не нашёл агентов conversation. Проверьте интеграции в Home Assistant."
+        ),
+        "model_unknown": (
+            "Не понял, какого агента включить. Откройте /model и выберите кнопкой."
+        ),
+        "model_stale": "Список устарел, откройте /model заново.",
         "attachment_soon": (
             "Пока понимаю текст и голосовые сообщения — отправьте текст или голосовое."
         ),
@@ -101,7 +113,16 @@ TEXTS: dict[str, dict[str, str]] = {
             "The voice message is too long. The limit is {seconds} seconds."
         ),
         "voice_too_big": "The file is too large to transcribe.",
-        "model_soon": "Switching the agent is coming in the next update.",
+        "model_header": "Choose the conversation agent for this chat.",
+        "model_current": "Current: {name}",
+        "model_default": "As in the pipeline",
+        "model_set": "Agent: {name}. Started a new conversation.",
+        "model_reset": "Back to the pipeline agent. Started a new conversation.",
+        "model_none": (
+            "No conversation agents found. Check the integrations in Home Assistant."
+        ),
+        "model_unknown": "Unknown agent. Open /model and pick one with a button.",
+        "model_stale": "This list is stale, open /model again.",
         "attachment_soon": (
             "I understand text and voice messages so far — send text or a voice note."
         ),
@@ -120,6 +141,10 @@ _VOICE_MODES = {
     "both": REPLY_MODE_BOTH,
 }
 
+MODEL_CALLBACK = "hk_agent:"
+
+_DEFAULT_AGENT_WORDS = frozenset(("default", "pipeline", "пайплайн", "по умолчанию"))
+
 
 class Brain:
     """Turn accepted messages into replies."""
@@ -135,6 +160,7 @@ class Brain:
         todo_entity: str | None = None,
         max_voice_seconds: int = DEFAULT_MAX_VOICE_SECONDS,
         briefing: BriefingSources | None = None,
+        stats: RuntimeStats | None = None,
     ) -> None:
         """Initialise the brain with entry-level defaults."""
         self.hass = hass
@@ -144,21 +170,31 @@ class Brain:
         self._default_reply_mode = reply_mode
         self._max_voice_seconds = max_voice_seconds
         self._briefing = briefing or BriefingSources()
+        self._stats = stats or RuntimeStats()
         self._shop = ShopSkill(hass, transport, todo_entity)
+        # The callback data of an agent button is only an index; the list it
+        # points at lives here so long entity ids never hit Telegram's limit.
+        self._agent_choices: dict[int, tuple[str, ...]] = {}
 
     async def async_handle(self, message: IncomingMessage) -> None:
         """Process one accepted message."""
         chat = self._chats.mark_seen(message.chat_id)
 
         if message.kind is MessageKind.CALLBACK:
-            await self._shop.async_handle_callback(message, self._language(chat))
+            self._stats.callbacks += 1
+            language = self._language(chat)
+            if await self._shop.async_handle_callback(message, language):
+                return
+            await self._async_handle_agent_callback(message, chat)
             return
 
         if message.kind is MessageKind.COMMAND:
+            self._stats.commands += 1
             await self._async_handle_command(message, chat)
             return
 
         if message.kind is MessageKind.ATTACHMENT and is_audio(message.attachment):
+            self._stats.voice_in += 1
             await self._async_answer_voice(message, chat)
             return
 
@@ -167,6 +203,7 @@ class Brain:
             return
         # A caption is plain text, so it can go to the agent as is.
 
+        self._stats.text += 1
         await self._async_answer(message, chat)
 
     async def _async_answer(self, message: IncomingMessage, chat: ChatContext) -> None:
@@ -199,10 +236,12 @@ class Brain:
                     return_response=True,
                 )
         except TimeoutError:
+            self._stats.record_error("TimeoutError")
             await self._reply(message, self._text(chat, "timeout"))
             return
         except HomeAssistantError as err:
             # The error text may quote the user message, so log the type only.
+            self._stats.record_error(type(err).__name__)
             _LOGGER.error(
                 "Conversation failed in chat %s (%s)",
                 message.chat_id,
@@ -263,6 +302,7 @@ class Brain:
             attachment.file_id, file_name=file_name
         )
         if downloaded is None:
+            self._stats.record_error("DownloadError")
             await self._reply(message, self._text(chat, "failed"))
             return
 
@@ -282,6 +322,7 @@ class Brain:
             return
         except HomeAssistantError as err:
             # The error may name the file, never the audio content.
+            self._stats.record_error(type(err).__name__)
             _LOGGER.error(
                 "Could not decode a voice message in chat %s (%s)",
                 message.chat_id,
@@ -301,9 +342,11 @@ class Brain:
                 language=self._language(chat),
             )
         except TimeoutError:
+            self._stats.record_error("TimeoutError")
             await self._reply(message, self._text(chat, "timeout"))
             return
         except HomeAssistantError as err:
+            self._stats.record_error(type(err).__name__)
             _LOGGER.error(
                 "Voice pipeline failed in chat %s (%s)",
                 message.chat_id,
@@ -337,9 +380,10 @@ class Brain:
         chat_id: int,
         message_id: int | None = None,
         thread_id: int | None = None,
+        mode: str | None = None,
     ) -> None:
         """Send an agent answer as text, voice or both."""
-        mode = chat.reply_mode or self._default_reply_mode
+        mode = mode or chat.reply_mode or self._default_reply_mode
         reply_to = message_id if message_id is not None and chat_id < 0 else None
         text_sent = False
         if mode == REPLY_MODE_BOTH:
@@ -370,8 +414,10 @@ class Brain:
         try:
             staged = await async_stage_voice_reply(self.hass, self._pipeline, text)
         except TimeoutError:
+            self._stats.record_error("TimeoutError")
             _LOGGER.error("Text-to-speech timed out in chat %s", chat_id)
         except HomeAssistantError as err:
+            self._stats.record_error(type(err).__name__)
             _LOGGER.error(
                 "Text-to-speech failed in chat %s (%s)",
                 chat_id,
@@ -400,6 +446,13 @@ class Brain:
             await self._transport.async_send_text(
                 chat_id, text, thread_id=thread_id, reply_to=reply_to
             )
+        elif sent:
+            self._stats.voice_out += 1
+
+    async def async_say(self, chat_id: int, text: str, mode: str | None = None) -> None:
+        """Send a text or voice message to a chat, for the ``say`` service."""
+        chat = self._chats.get(chat_id)
+        await self._async_deliver(chat, text, chat_id=chat_id, mode=mode)
 
     async def async_send_briefing(self, chat_id: int | None = None) -> None:
         """Build and deliver the briefing to one chat or every private chat."""
@@ -415,6 +468,7 @@ class Brain:
             _LOGGER.debug("No private chat is known yet, skipping the briefing")
             return
 
+        self._stats.briefings += 1
         for target in targets:
             chat = self._chats.get(target)
             text = await async_build_briefing(
@@ -441,11 +495,164 @@ class Brain:
         elif command == "brief":
             await self._async_briefing_command(message, chat)
         elif command == "model":
-            await self._reply(message, self._text(chat, "model_soon"))
+            await self._async_model_command(message, chat)
         else:
             # Another automation may own this command (for example /shop or
             # /video). Staying quiet keeps both working in the same chat.
             _LOGGER.debug("Ignoring command %s: not ours", command)
+
+    async def _async_model_command(
+        self, message: IncomingMessage, chat: ChatContext
+    ) -> None:
+        """List conversation agents or switch to one by name."""
+        argument = " ".join(message.args).strip()
+        if argument:
+            await self._async_switch_agent(message, chat, argument)
+            return
+
+        agents = self._agent_list()
+        if not agents:
+            await self._reply(message, self._text(chat, "model_none"))
+            return
+
+        self._agent_choices[message.chat_id] = tuple(agent_id for agent_id, _ in agents)
+        current = chat.agent_id or self._agent_id()
+        keyboard: list[list[list[str]]] = [
+            [
+                [
+                    f"{'✅ ' if agent_id == current else ''}{name}",
+                    f"{MODEL_CALLBACK}{index}",
+                ]
+            ]
+            for index, (agent_id, name) in enumerate(agents)
+        ]
+        keyboard.append(
+            [
+                [
+                    f"↩️ {self._text(chat, 'model_default')}",
+                    f"{MODEL_CALLBACK}default",
+                ]
+            ]
+        )
+
+        text = "\n".join(
+            (
+                self._text(chat, "model_header"),
+                self._text(chat, "model_current").format(
+                    name=self._agent_name(current) or self._text(chat, "model_default")
+                ),
+            )
+        )
+        await self._transport.async_send_text(
+            message.chat_id,
+            text,
+            thread_id=message.thread_id,
+            reply_to=message.message_id if message.chat_id < 0 else None,
+            keyboard=keyboard,
+        )
+
+    async def _async_switch_agent(
+        self, message: IncomingMessage, chat: ChatContext, argument: str
+    ) -> None:
+        """Switch the agent from a text argument."""
+        if argument.casefold() in _DEFAULT_AGENT_WORDS:
+            await self._async_apply_agent(chat, None)
+            await self._reply(message, self._text(chat, "model_reset"))
+            return
+
+        wanted = argument.casefold()
+        match = None
+        for agent_id, name in self._agent_list():
+            aliases = {
+                agent_id.casefold(),
+                agent_id.split(".", 1)[-1].casefold(),
+                name.casefold(),
+            }
+            if wanted in aliases:
+                match = agent_id
+                break
+        if match is None:
+            await self._reply(message, self._text(chat, "model_unknown"))
+            return
+
+        await self._async_apply_agent(chat, match)
+        await self._reply(
+            message,
+            self._text(chat, "model_set").format(name=self._agent_name(match) or match),
+        )
+
+    async def _async_handle_agent_callback(
+        self, message: IncomingMessage, chat: ChatContext
+    ) -> None:
+        """Handle a tap on an agent button."""
+        data = message.callback_data or ""
+        if not data.startswith(MODEL_CALLBACK):
+            return
+
+        texts = self._table(chat)
+        key = data[len(MODEL_CALLBACK) :]
+        if key == "default":
+            agent_id: str | None = None
+        else:
+            try:
+                index = int(key)
+            except ValueError:
+                index = -1
+            choices = self._agent_choices.get(message.chat_id, ())
+            if not 0 <= index < len(choices):
+                await self._transport.async_answer_callback(
+                    message.callback_id, texts["model_stale"]
+                )
+                return
+            agent_id = choices[index]
+
+        await self._transport.async_answer_callback(message.callback_id)
+        await self._async_apply_agent(chat, agent_id)
+        if message.message_id is None:
+            return
+
+        if agent_id is None:
+            text = texts["model_reset"]
+        else:
+            text = texts["model_set"].format(
+                name=self._agent_name(agent_id) or agent_id
+            )
+        await self._transport.async_edit_message(
+            message.chat_id, message.message_id, text
+        )
+
+    async def _async_apply_agent(self, chat: ChatContext, agent_id: str | None) -> None:
+        """Remember the agent for this chat and start a fresh conversation."""
+        chat.agent_id = agent_id
+        chat.conversation_id = f"tg:{chat.chat_id}"
+        chat.last_agent = agent_id
+        await self._chats.async_save()
+
+    def _agent_list(self) -> list[tuple[str, str]]:
+        """Return available conversation agents as ``(entity_id, name)``."""
+        agents: list[tuple[str, str]] = []
+        for state in self.hass.states.async_all("conversation"):
+            if state.state == "unavailable":
+                continue
+            name = state.attributes.get("friendly_name")
+            agents.append(
+                (
+                    state.entity_id,
+                    name if isinstance(name, str) and name else state.entity_id,
+                )
+            )
+        agents.sort(key=lambda item: item[1].casefold())
+        return agents
+
+    def _agent_name(self, agent_id: str | None) -> str | None:
+        """Return a display name of an agent."""
+        if not agent_id:
+            return None
+        state = self.hass.states.get(agent_id)
+        if state is None:
+            return agent_id
+        name = state.attributes.get("friendly_name")
+        return name if isinstance(name, str) and name else agent_id
 
     async def _async_briefing_command(
         self, message: IncomingMessage, chat: ChatContext
@@ -512,11 +719,14 @@ class Brain:
         """Return the conversation agent from the selected pipeline."""
         return self._pipeline.conversation_engine if self._pipeline else None
 
+    def _table(self, chat: ChatContext) -> dict[str, str]:
+        """Return the localised string table of a chat."""
+        language = self._language(chat)
+        return TEXTS.get(language, TEXTS[DEFAULT_LANGUAGE])
+
     def _text(self, chat: ChatContext, key: str) -> str:
         """Return a localised chat string."""
-        language = self._language(chat)
-        table = TEXTS.get(language, TEXTS[DEFAULT_LANGUAGE])
-        return table[key]
+        return self._table(chat)[key]
 
 
-__all__ = ["Brain", "extract_speech"]
+__all__ = ["MODEL_CALLBACK", "Brain", "extract_speech"]

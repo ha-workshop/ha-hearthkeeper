@@ -20,6 +20,7 @@ from .brain import Brain
 from .brief import BriefingSources, parse_brief_time
 from .const import (
     ATTR_CHAT_ID,
+    ATTR_MODE,
     ATTR_TEXT,
     CONF_ALLOW_GROUPS,
     CONF_BRIEF_CALENDARS,
@@ -41,12 +42,16 @@ from .const import (
     DEFAULT_OPTIONS,
     DEFAULT_REPLY_MODE,
     DOMAIN,
+    REPLY_MODE_BOTH,
+    REPLY_MODE_TEXT,
+    REPLY_MODE_VOICE,
     SERVICE_BRIEF,
     SERVICE_RESET,
     SERVICE_SAY,
     TELEGRAM_DOMAIN,
     TELEGRAM_SUBENTRY_ALLOWED_CHATS,
 )
+from .stats import RuntimeStats
 from .store import ChatStore
 from .transport import Transport
 
@@ -66,6 +71,7 @@ class HearthkeeperRuntime:
     briefing: BriefingSources
     brief_enabled: bool
     brief_time: str
+    stats: RuntimeStats
 
     def handles_chat(self, chat_id: int) -> bool:
         """Return True when the chat belongs to this entry."""
@@ -125,6 +131,7 @@ async def async_setup_entry(
         mail=_str_list(options.get(CONF_BRIEF_MAIL)),
         home=bool(options.get(CONF_BRIEF_HOME, DEFAULT_BRIEF_HOME)),
     )
+    stats = RuntimeStats()
     brain = Brain(
         hass,
         transport,
@@ -136,6 +143,7 @@ async def async_setup_entry(
             _as_int(options.get(CONF_MAX_VOICE_SECONDS)) or DEFAULT_MAX_VOICE_SECONDS
         ),
         briefing=briefing,
+        stats=stats,
     )
     transport.set_handler(brain.async_handle)
 
@@ -149,6 +157,7 @@ async def async_setup_entry(
         briefing=briefing,
         brief_enabled=bool(options.get(CONF_BRIEF_ENABLED, DEFAULT_BRIEF_ENABLED)),
         brief_time=_str_or_none(options.get(CONF_BRIEF_TIME)) or DEFAULT_BRIEF_TIME,
+        stats=stats,
     )
     entry.runtime_data = runtime
 
@@ -272,17 +281,25 @@ def _async_register_services(hass: HomeAssistant) -> None:
 
 
 async def _async_handle_say(call: ServiceCall) -> None:
-    """Send a message to a chat."""
+    """Send a text or voice message to a chat."""
     chat_id = _as_int(call.data.get(ATTR_CHAT_ID))
     text = call.data.get(ATTR_TEXT)
+    mode = call.data.get(ATTR_MODE)
     if chat_id is None or not isinstance(text, str) or not text.strip():
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="invalid_service_data"
+        )
+    if mode is not None and (
+        not isinstance(mode, str)
+        or mode not in (REPLY_MODE_TEXT, REPLY_MODE_VOICE, REPLY_MODE_BOTH)
+    ):
         raise ServiceValidationError(
             translation_domain=DOMAIN, translation_key="invalid_service_data"
         )
 
     for runtime in _loaded_runtimes(call.hass):
         if runtime.handles_chat(chat_id):
-            await runtime.transport.async_send_text(chat_id, text)
+            await runtime.brain.async_say(chat_id, text, mode)
             return
 
     raise ServiceValidationError(
