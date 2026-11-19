@@ -51,6 +51,14 @@ from .const import (
     TELEGRAM_DOMAIN,
     TELEGRAM_SUBENTRY_ALLOWED_CHATS,
 )
+from .skills import (
+    SkillRouter,
+    async_install_sentences,
+    async_register_intents,
+    async_reload_assist,
+    async_remove_intents,
+    async_remove_sentences,
+)
 from .stats import RuntimeStats
 from .store import ChatStore
 from .transport import Transport
@@ -160,6 +168,19 @@ async def async_setup_entry(
         stats=stats,
     )
     entry.runtime_data = runtime
+
+    skill_router = SkillRouter(hass, briefing)
+    async_register_intents(hass, skill_router)
+    entry.async_on_unload(lambda: async_remove_intents(hass))
+    try:
+        await async_install_sentences(hass)
+    except OSError as err:
+        _LOGGER.warning(
+            "Could not install the Assist sentences (%s)", type(err).__name__
+        )
+    else:
+        await async_reload_assist(hass)
+    entry.async_on_unload(lambda: async_remove_sentences(hass))
 
     transport.async_start()
     entry.async_on_unload(transport.async_stop)

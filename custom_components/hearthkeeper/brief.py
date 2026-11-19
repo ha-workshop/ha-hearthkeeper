@@ -47,6 +47,8 @@ _TEXTS: dict[str, dict[str, Any]] = {
         "date": "Сегодня {weekday}, {day} {month}.",
         "weather": "☀️ Погода",
         "calendar": "📅 Календарь",
+        "calendar_today": "📅 Сегодня",
+        "calendar_tomorrow": "📅 Завтра",
         "home": "🏠 Дом",
         "todo": "🛒 Покупки",
         "mail": "✉️ Почта",
@@ -109,6 +111,8 @@ _TEXTS: dict[str, dict[str, Any]] = {
         "date": "Today is {weekday}, {day} {month}.",
         "weather": "☀️ Weather",
         "calendar": "📅 Calendar",
+        "calendar_today": "📅 Today",
+        "calendar_tomorrow": "📅 Tomorrow",
         "home": "🏠 Home",
         "todo": "🛒 Shopping list",
         "mail": "✉️ Mail",
@@ -207,6 +211,63 @@ async def async_build_briefing(
         if block:
             blocks.append(block)
     return "\n\n".join(blocks)
+
+
+def texts_for(language: str) -> dict[str, Any]:
+    """Return the localized briefing strings."""
+    return _TEXTS.get(language, _TEXTS[DEFAULT_LANGUAGE])
+
+
+async def async_calendar_day(
+    hass: HomeAssistant,
+    sources: BriefingSources,
+    language: str,
+    *,
+    tomorrow: bool = False,
+) -> str | None:
+    """Return one day of events, or None when no calendar is configured."""
+    if not sources.calendars:
+        return None
+
+    texts = texts_for(language)
+    start = dt_util.start_of_local_day(dt_util.now()) + timedelta(
+        days=1 if tomorrow else 0
+    )
+    end = start + timedelta(days=1)
+    try:
+        response = await hass.services.async_call(
+            "calendar",
+            "get_events",
+            {
+                "start_date_time": start.isoformat(),
+                "end_date_time": end.isoformat(),
+            },
+            target={"entity_id": list(sources.calendars)},
+            blocking=True,
+            return_response=True,
+        )
+    except HomeAssistantError as err:
+        _LOGGER.debug("Calendar is unavailable (%s)", type(err).__name__)
+        return texts["unavailable"].format(section=texts["calendar"])
+
+    events = [event for event in _parse_events(response) if start <= event[0] < end]
+    _LOGGER.debug("Skill read %s calendar events", len(events))
+
+    lines = [texts["calendar_tomorrow" if tomorrow else "calendar_today"]]
+    if events:
+        lines.extend(_format_event(event, texts) for event in events[:MAX_EVENTS])
+        if len(events) > MAX_EVENTS:
+            lines.append(texts["more"].format(count=len(events) - MAX_EVENTS))
+    else:
+        lines.append(texts["no_events"])
+    return "\n".join(lines)
+
+
+def home_status_text(
+    hass: HomeAssistant, sources: BriefingSources, language: str
+) -> str | None:
+    """Return the home summary, or None when the section is disabled."""
+    return _home_status(hass, sources, texts_for(language))
 
 
 def _header(now: datetime, texts: dict[str, Any]) -> str:

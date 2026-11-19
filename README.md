@@ -62,6 +62,22 @@ replies through `telegram_bot` services.
 | `/brief` | Daily briefing: weather, calendar, house, shopping list, mail |
 | `/model` | Switch the conversation agent for this chat (buttons or `/model <name>`) |
 
+## Skills
+
+Before a text reaches the conversation agent, Hearthkeeper matches a few short
+phrases itself. This works even with a local agent that knows nothing about
+Home Assistant:
+
+| Phrase (RU / EN) | Answer |
+|---|---|
+| «сводка», «брифинг» / "briefing", "daily summary" | The same briefing as `/brief` |
+| «что у меня сегодня», «планы на завтра» / "what is on today", "tomorrow's plans" | Calendar for the requested day |
+| «что дома», «статус дома» / "home status", "anything on at home" | Lights, open doors and windows, climate |
+
+The same phrases are registered as Assist intents and written to
+`custom_sentences/` so the default Assist agent understands them too. Anything
+else goes to the conversation agent as before.
+
 ## Briefing
 
 Open **Configure** and pick the sources you already use in Home Assistant:

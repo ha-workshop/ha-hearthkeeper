@@ -22,6 +22,7 @@ from .const import (
     VOICE_DOWNLOAD_LIMIT,
 )
 from .shop import ShopSkill
+from .skills import SkillRouter
 from .stats import RuntimeStats
 from .store import ChatContext, ChatStore
 from .transport import IncomingMessage, MessageKind, Transport, strip_bot_mention
@@ -172,6 +173,7 @@ class Brain:
         self._briefing = briefing or BriefingSources()
         self._stats = stats or RuntimeStats()
         self._shop = ShopSkill(hass, transport, todo_entity)
+        self._skills = SkillRouter(hass, self._briefing)
         # The callback data of an agent button is only an index; the list it
         # points at lives here so long entity ids never hit Telegram's limit.
         self._agent_choices: dict[int, tuple[str, ...]] = {}
@@ -215,6 +217,31 @@ class Brain:
         await self._transport.async_send_chat_action(
             message.chat_id, "typing", thread_id=message.thread_id
         )
+
+        language = self._language(chat)
+        skill = self._skills.match(text, language)
+        if skill is not None:
+            self._stats.skills += 1
+            try:
+                answer = await self._skills.async_run(skill, language)
+            except HomeAssistantError as err:
+                self._stats.record_error(type(err).__name__)
+                _LOGGER.error(
+                    "Skill %s failed in chat %s (%s)",
+                    skill.intent,
+                    message.chat_id,
+                    type(err).__name__,
+                )
+                await self._reply(message, self._text(chat, "failed"))
+                return
+            await self._async_deliver(
+                chat,
+                answer,
+                chat_id=message.chat_id,
+                message_id=message.message_id,
+                thread_id=message.thread_id,
+            )
+            return
 
         agent_id = chat.agent_id or self._agent_id()
         if not agent_id:
