@@ -45,6 +45,7 @@ from .voice import (
     audio_suffix,
     is_audio,
 )
+from .webapp import WEBAPP_URL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,6 +61,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/brief — сводка дня\n"
             "/mail — что в почте\n"
             "/remind 20m текст — напоминание\n"
+            "/web — открыть Mini App\n"
             "/model — сменить агента\n"
             "/help — эта справка"
         ),
@@ -122,6 +124,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/brief — daily briefing\n"
             "/mail — what is in the mail\n"
             "/remind 20m text — a reminder\n"
+            "/web — open the Mini App\n"
             "/model — switch the agent\n"
             "/help — this help"
         ),
@@ -606,6 +609,8 @@ class Brain:
             await self._async_mail_command(message, chat)
         elif command in ("remind", "reminder"):
             await self._async_reminder_command(message, chat)
+        elif command == "web":
+            await self._async_web_command(message, chat)
         elif command == "model":
             await self._async_model_command(message, chat)
         else:
@@ -875,6 +880,29 @@ class Brain:
     def async_stop(self) -> None:
         """Cancel pending reminders when the config entry unloads."""
         self._reminders.async_stop()
+
+    async def _async_web_command(
+        self, message: IncomingMessage, chat: ChatContext
+    ) -> None:
+        """Open the Mini App in Telegram."""
+        webapp_url = WEBAPP_URL
+        if not webapp_url:
+            await self._reply(
+                message,
+                "Mini App URL is not configured. "
+                "Set the external URL in Home Assistant.",
+            )
+            return
+        keyboard: list[list[list[str]]] = [
+            [[{"text": "🚀 Open Hearthkeeper", "web_app": {"url": webapp_url}}]]
+        ]
+        await self._transport.async_send_text(
+            message.chat_id,
+            "Open the Mini App to chat in a rich interface:",
+            thread_id=message.thread_id,
+            reply_to=message.message_id if message.chat_id < 0 else None,
+            keyboard=keyboard,
+        )
 
     async def _async_voice_command(
         self, message: IncomingMessage, chat: ChatContext

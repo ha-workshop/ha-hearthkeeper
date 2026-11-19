@@ -72,6 +72,7 @@ from .skills import (
 from .stats import RuntimeStats
 from .store import ChatStore
 from .transport import Transport
+from .webapp import async_register_webapp
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -219,6 +220,7 @@ async def async_setup_entry(
     transport.async_start()
     entry.async_on_unload(transport.async_stop)
     _async_schedule_briefing(hass, entry, runtime)
+    async_register_webapp(hass)
     _async_register_services(hass)
     return True
 
