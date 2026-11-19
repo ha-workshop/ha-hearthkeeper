@@ -93,7 +93,11 @@ async def async_register_webapp(hass: HomeAssistant) -> None:
 
 def _build_webapp_url(hass: HomeAssistant) -> str:
     """Build the public WebApp URL from the HA external URL."""
-    external_url = hass.config.external_url or hass.config.url
+    external_url = (
+        hass.config.external_url
+        or hass.config.internal_url
+        or ""
+    )
     if not external_url:
         return ""
     return external_url.rstrip("/") + WEBAPP_PATH
