@@ -71,6 +71,9 @@ data:
   text: "The garage door is still open"
 ```
 
+Add `mode: voice` (or `both`) to speak the message with the pipeline voice;
+without it the chat's own reply mode is used.
+
 - `hearthkeeper.say` — send text to a chat
 - `hearthkeeper.reset` — forget the conversation context (one chat or all)
 - `hearthkeeper.brief` — send the briefing now to one chat or to every known private chat
