@@ -15,153 +15,242 @@
   --btn: var(--tg-theme-button-color, #2481cc);
   --btn-text: var(--tg-theme-button-text-color, #fff);
   --sec-bg: var(--tg-theme-secondary-bg-color, #f0f0f0);
+  --section-bg: var(--tg-theme-section-bg-color, var(--bg));
+  --section-header: var(--tg-theme-section-header-text-color, var(--hint));
+  --radius: 12px;
 }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--tg-theme-secondary-bg-color, var(--sec-bg));
+  background: var(--sec-bg);
   color: var(--text);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  padding: 16px 12px 24px;
+  max-width: 600px;
+  margin: 0 auto;
 }
-#messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
+h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.subtitle {
+  font-size: 14px;
+  color: var(--hint);
+  margin-bottom: 16px;
+}
+.section {
+  background: var(--section-bg);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--section-header);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+.row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--sec-bg);
+}
+.row:last-child { border-bottom: none; }
+.row-label { font-size: 15px; }
+.row-hint { font-size: 13px; color: var(--hint); margin-top: 1px; }
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
-.msg {
-  max-width: 85%;
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 16px;
-  line-height: 1.4;
-  word-wrap: break-word;
-}
-.msg.user {
-  align-self: flex-end;
-  background: var(--tg-theme-button-color, var(--btn));
-  color: var(--tg-theme-button-text-color, var(--btn-text));
-  border-bottom-right-radius: 4px;
-}
-.msg.bot {
-  align-self: flex-start;
-  background: var(--tg-theme-bg-color, var(--bg));
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-}
-#input-bar {
-  display: flex;
-  gap: 8px;
-  padding: 12px;
-  background: var(--tg-theme-bg-color, var(--bg));
-  border-top: 1px solid var(--tg-theme-hint-color, #ddd);
-}
-#input-bar input {
-  flex: 1;
-  border: none;
-  border-radius: 20px;
-  padding: 10px 16px;
-  font-size: 16px;
-  background: var(--tg-theme-secondary-bg-color, var(--sec-bg));
-  color: var(--text);
-  outline: none;
-}
-#input-bar button {
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 50%;
-  background: var(--tg-theme-button-color, var(--btn));
-  color: var(--tg-theme-button-text-color, var(--btn-text));
-  font-size: 20px;
-  cursor: pointer;
+.action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--btn);
+  color: var(--btn-text);
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
 }
-#input-bar button:disabled { opacity: 0.5; }
+.action-btn:active { opacity: 0.7; }
+.toggle {
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  background: #ccc;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle.on { background: var(--btn); }
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+}
+.toggle.on::after { transform: translateX(18px); }
+.badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--sec-bg);
+  color: var(--hint);
+}
 #status {
   text-align: center;
-  padding: 6px;
+  padding: 4px;
   font-size: 13px;
   color: var(--hint);
+  margin-bottom: 8px;
 }
 </style>
 </head>
 <body>
-<div id="messages"><div class="msg bot">Connecting…</div></div>
-<div id="status">connecting</div>
-<div id="input-bar">
-  <input id="text-input" type="text" placeholder="Message…" disabled>
-  <button id="send-btn" disabled>➤</button>
+<div id="status">connecting…</div>
+<h1 id="greeting">Hearthkeeper</h1>
+<div class="subtitle" id="user-info"></div>
+
+<div class="section">
+  <div class="section-title">Quick actions</div>
+  <div class="action-grid">
+    <button class="action-btn" onclick="sendCmd('/brief')">📅 Briefing</button>
+    <button class="action-btn" onclick="sendCmd('/shop')">🛒 Shopping</button>
+    <button class="action-btn" onclick="sendCmd('/mail')">✉️ Mail</button>
+    <button class="action-btn" onclick="sendCmd('/new')">🔄 New chat</button>
+  </div>
 </div>
+
+<div class="section">
+  <div class="section-title">Chat settings</div>
+  <div class="row">
+    <div>
+      <div class="row-label">Voice replies</div>
+      <div class="row-hint">Bot speaks the answer</div>
+    </div>
+    <div class="toggle" id="voice-toggle" onclick="toggleVoice()"></div>
+  </div>
+  <div class="row">
+    <div>
+      <div class="row-label">Agent</div>
+      <div class="row-hint" id="current-agent">pipeline</div>
+    </div>
+    <button class="action-btn" style="padding:6px 14px;font-size:13px" onclick="switchAgent()">Change</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Briefing sources</div>
+  <div class="row">
+    <div>
+      <div class="row-label">Weather</div>
+      <div class="row-hint" id="weather-source">not set</div>
+    </div>
+    <span class="badge" id="weather-status">—</span>
+  </div>
+  <div class="row">
+    <div>
+      <div class="row-label">Calendar</div>
+      <div class="row-hint" id="calendar-count">0 calendars</div>
+    </div>
+    <span class="badge" id="calendar-status">—</span>
+  </div>
+  <div class="row">
+    <div>
+      <div class="row-label">Mail</div>
+      <div class="row-hint" id="mail-count">0 sensors</div>
+    </div>
+    <span class="badge" id="mail-status">—</span>
+  </div>
+  <div class="row">
+    <div>
+      <div class="row-label">Home status</div>
+    </div>
+    <div class="toggle on" id="home-toggle" onclick="toggleHome()"></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Quiet hours</div>
+  <div class="row">
+    <div>
+      <div class="row-label">Start</div>
+    </div>
+    <span id="quiet-start" style="font-size:15px">23:00</span>
+  </div>
+  <div class="row">
+    <div>
+      <div class="row-label">End</div>
+    </div>
+    <span id="quiet-end" style="font-size:15px">07:00</span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">About</div>
+  <div class="row">
+    <div>
+      <div class="row-label">Version</div>
+    </div>
+    <span class="badge" id="version">0.1.0</span>
+  </div>
+  <div class="row">
+    <div>
+      <div class="row-label">Uptime</div>
+    </div>
+    <span class="badge" id="uptime">—</span>
+  </div>
+</div>
+
 <script>
 (function() {
   const tg = window.Telegram.WebApp;
   tg.ready();
   tg.expand();
-  const messagesEl = document.getElementById('messages');
-  const statusEl = document.getElementById('status');
-  const input = document.getElementById('text-input');
-  const sendBtn = document.getElementById('send-btn');
-  let ws = null;
-  let conversationId = null;
-  let agentId = null;
-  function addMessage(text, role) {
-    const div = document.createElement('div');
-    div.className = 'msg ' + role;
-    div.textContent = text;
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  const user = tg.initDataUnsafe?.user;
+  if (user) {
+    document.getElementById('greeting').textContent = 'Hello, ' + (user.first_name || 'there');
+    document.getElementById('user-info').textContent = user.id ? 'ID: ' + user.id : '';
   }
-  function setStatus(text) { statusEl.textContent = text; }
-  function setConnected(c) {
-    input.disabled = !c;
-    sendBtn.disabled = !c;
-    setStatus(c ? 'connected' : 'disconnected');
+  document.getElementById('status').textContent = 'connected';
+
+  function sendCmd(cmd) {
+    tg.sendData(cmd);
   }
-  const loc = window.location;
-  const wsUrl = (loc.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + loc.host + '/api/conversation/ws';
-  function connect() {
-    ws = new WebSocket(wsUrl);
-    ws.onopen = () => {
-      setConnected(true);
-      const initData = tg.initData;
-      if (initData) ws.send(JSON.stringify({ type: 'auth', access_token: initData }));
-      addMessage('Connected. Ask me anything about your home.', 'bot');
-    };
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === 'conversation' && msg.result) {
-          const reply = msg.result.response?.speech?.plain?.speech || '';
-          if (reply) addMessage(reply, 'bot');
-          if (msg.result.conversation_id) conversationId = msg.result.conversation_id;
-          if (msg.result.agent_id) agentId = msg.result.agent_id;
-        }
-      } catch(_) {}
-    };
-    ws.onclose = () => { setConnected(false); setTimeout(connect, 3000); };
-    ws.onerror = () => { ws.close(); };
-  }
-  function send() {
-    const text = input.value.trim();
-    if (!text || !ws) return;
-    input.value = '';
-    addMessage(text, 'user');
-    ws.send(JSON.stringify({
-      type: 'conversation',
-      text: text,
-      conversation_id: conversationId,
-      agent_id: agentId,
-    }));
-  }
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
-  sendBtn.addEventListener('click', send);
-  connect();
+
+  // Toggle voice — sendData + update UI
+  let voiceOn = false;
+  window.toggleVoice = function() {
+    voiceOn = !voiceOn;
+    document.getElementById('voice-toggle').classList.toggle('on', voiceOn);
+    tg.sendData('/voice ' + (voiceOn ? 'on' : 'off'));
+  };
+
+  let homeOn = true;
+  window.toggleHome = function() {
+    homeOn = !homeOn;
+    document.getElementById('home-toggle').classList.toggle('on', homeOn);
+    // Home status toggle — just a UI hint, options flow is the source of truth
+  };
+
+  window.switchAgent = function() {
+    tg.sendData('/model');
+  };
 })();
 </script>
 </body>

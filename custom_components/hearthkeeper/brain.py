@@ -250,6 +250,11 @@ class Brain:
             await self._async_handle_command(message, chat)
             return
 
+        if message.kind is MessageKind.WEB_APP:
+            self._stats.commands += 1
+            await self._async_answer(message, chat)
+            return
+
         if message.kind is MessageKind.ATTACHMENT and is_audio(message.attachment):
             self._stats.voice_in += 1
             await self._async_answer_voice(message, chat)

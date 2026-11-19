@@ -75,6 +75,7 @@ class MessageKind(StrEnum):
     COMMAND = "command"
     ATTACHMENT = "attachment"
     CALLBACK = "callback"
+    WEB_APP = "web_app"
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +147,11 @@ def parse_event(kind: MessageKind, data: Mapping[str, Any]) -> IncomingMessage |
         )
 
     if kind is MessageKind.TEXT:
+        web_app_data = data.get("web_app_data")
+        if isinstance(web_app_data, str) and web_app_data.strip():
+            return IncomingMessage(
+                kind=MessageKind.WEB_APP, text=web_app_data.strip(), **common
+            )
         text = data.get(_DATA_TEXT)
         if not isinstance(text, str) or not text.strip():
             return None
