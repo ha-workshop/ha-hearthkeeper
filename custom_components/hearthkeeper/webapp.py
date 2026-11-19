@@ -22,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "hearthkeeper"
 
-WEBAPP_PATH = f"/{DOMAIN}/webapp"
+WEBAPP_PATH = f"/api/{DOMAIN}/webapp"
 WEBAPP_NAME = f"{DOMAIN}:webapp"
 _TEMPLATE: str = ""
 
@@ -42,11 +42,22 @@ def _load_template() -> str:
     return path.read_text(encoding="utf-8")
 
 
-def async_register_webapp(hass: HomeAssistant) -> None:
-    """Load the template and register the WebApp HTTP endpoint."""
-    global _TEMPLATE, _WEBAPP_URL
-    _TEMPLATE = _load_template()
+def _get_template() -> str:
+    """Return the cached template, loading it on first access."""
+    global _TEMPLATE
+    if not _TEMPLATE:
+        _TEMPLATE = _load_template()
+    return _TEMPLATE
+
+
+async def async_register_webapp(hass: HomeAssistant) -> None:
+    """Register the WebApp HTTP endpoint.
+
+    The template is loaded in the executor to avoid blocking the event loop.
+    """
+    global _WEBAPP_URL
     _WEBAPP_URL = _build_webapp_url(hass)
+    await hass.async_add_executor_job(_get_template)
     hass.http.register_view(WebAppView())
 
 

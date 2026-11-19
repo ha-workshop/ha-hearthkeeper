@@ -220,7 +220,7 @@ async def async_setup_entry(
     transport.async_start()
     entry.async_on_unload(transport.async_stop)
     _async_schedule_briefing(hass, entry, runtime)
-    async_register_webapp(hass)
+    await async_register_webapp(hass)
     _async_register_services(hass)
     return True
 
