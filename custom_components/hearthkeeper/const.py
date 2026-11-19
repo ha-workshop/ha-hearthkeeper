@@ -38,14 +38,16 @@ LANGUAGES: Final = ("ru", "en")
 DEFAULT_LANGUAGE: Final = "ru"
 DEFAULT_REPLY_MODE: Final = REPLY_MODE_TEXT
 DEFAULT_ALLOW_GROUPS: Final = False
+DEFAULT_MAX_VOICE_SECONDS: Final = 120
 
-# M0 only exposes the settings that actually do something. Voice, briefing and
-# cloud options are added with the milestones that implement them.
+# M0 only exposes the settings that actually do something. Briefing and cloud
+# options are added with the milestones that implement them.
 DEFAULT_OPTIONS: Final[dict[str, object]] = {
     CONF_PIPELINE_ID: None,
     CONF_REPLY_MODE: DEFAULT_REPLY_MODE,
     CONF_ALLOW_GROUPS: DEFAULT_ALLOW_GROUPS,
     CONF_TODO_ENTITY: None,
+    CONF_MAX_VOICE_SECONDS: DEFAULT_MAX_VOICE_SECONDS,
 }
 
 # Services
@@ -74,3 +76,12 @@ CONVERSATION_TIMEOUT: Final = 60
 TELEGRAM_MESSAGE_LIMIT: Final = 4096
 DEDUP_CACHE_SIZE: Final = 256
 SENT_ID_CACHE_SIZE: Final = 50
+
+# Audio. Telegram lets a bot download files up to 20 MB, and the pipeline gets
+# the whole message at once, so both limits keep a long voice note from
+# blocking the chat.
+VOICE_TIMEOUT: Final = 120
+TTS_TIMEOUT: Final = 60
+MEDIA_TIMEOUT: Final = 60
+VOICE_DOWNLOAD_LIMIT: Final = 20 * 1024 * 1024
+VOICE_SAMPLE_RATE: Final = 16000

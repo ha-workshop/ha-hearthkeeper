@@ -4,6 +4,7 @@
   "codeowners": ["@mZer0ne", "@ha-workshop"],
   "config_flow": true,
   "after_dependencies": [
+    "assist_pipeline",
     "calendar",
     "conversation",
     "imap",

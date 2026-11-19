@@ -56,9 +56,13 @@ _DATA_CALLBACK_MESSAGE = "message"
 _CALLBACK_MESSAGE_ID = "message_id"
 
 _SERVICE_SEND_MESSAGE = "send_message"
+_SERVICE_SEND_VOICE = "send_voice"
 _SERVICE_SEND_CHAT_ACTION = "send_chat_action"
 _SERVICE_EDIT_MESSAGE = "edit_message"
 _SERVICE_ANSWER_CALLBACK = "answer_callback_query"
+_SERVICE_DOWNLOAD_FILE = "download_file"
+
+_DATA_FILE_PATH = "file_path"
 
 # Telegram rejects inline keyboard payloads longer than 64 bytes.
 CALLBACK_DATA_LIMIT = 64
@@ -515,6 +519,69 @@ class Transport:
             )
         except HomeAssistantError as err:
             _LOGGER.debug("Could not answer a callback query (%s)", type(err).__name__)
+
+    async def async_download_file(self, file_id: str, *, file_name: str) -> str | None:
+        """Download a Telegram file into the integration's own directory.
+
+        Returns the path of the downloaded file, or ``None`` when Telegram
+        refused the download.
+        """
+        data: dict[str, Any] = {
+            _DATA_CONFIG_ENTRY_ID: self._telegram_entry_id,
+            _DATA_FILE_ID: file_id,
+            _DATA_FILE_NAME: file_name,
+        }
+        try:
+            response = await self.hass.services.async_call(
+                TELEGRAM_DOMAIN,
+                _SERVICE_DOWNLOAD_FILE,
+                data,
+                blocking=True,
+                return_response=True,
+            )
+        except HomeAssistantError as err:
+            _LOGGER.warning(
+                "Could not download a Telegram file (%s)", type(err).__name__
+            )
+            return None
+
+        if isinstance(response, dict):
+            path = response.get(_DATA_FILE_PATH)
+            if isinstance(path, str) and path:
+                return path
+        return None
+
+    async def async_send_voice(
+        self,
+        chat_id: int,
+        file_path: str,
+        *,
+        thread_id: int | None = None,
+        reply_to: int | None = None,
+    ) -> bool:
+        """Upload a staged voice note to a chat."""
+        data: dict[str, Any] = {
+            _DATA_CONFIG_ENTRY_ID: self._telegram_entry_id,
+            _DATA_CHAT_ID: chat_id,
+            "file": file_path,
+        }
+        if thread_id is not None:
+            data[_DATA_THREAD_ID] = thread_id
+        if reply_to is not None:
+            data[_DATA_REPLY_TO] = reply_to
+
+        try:
+            await self.hass.services.async_call(
+                TELEGRAM_DOMAIN, _SERVICE_SEND_VOICE, data, blocking=True
+            )
+        except HomeAssistantError as err:
+            _LOGGER.warning(
+                "Could not send a Telegram voice note to chat %s (%s)",
+                chat_id,
+                type(err).__name__,
+            )
+            return False
+        return True
 
     async def async_send_chat_action(
         self, chat_id: int, action: str = "typing", *, thread_id: int | None = None

@@ -13,8 +13,8 @@ replies through `telegram_bot` services.
 | Milestone | Scope | State |
 |---|---|---|
 | M0 | config flow, transport, text replies, `/help`, `/new`, `/voice` | ✅ |
-| M1 | voice input: OGG → PCM → STT | ⏳ |
-| M2 | voice output, groups, dedup across restarts | ⏳ |
+| M1 | voice input: Telegram OGG → WAV → Assist pipeline | ✅ |
+| M2 | voice output, groups, dedup across restarts | 🚧 |
 | M3 | skills: calendar, mail, home, brief, todo | ⏳ |
 | M4 | `/model`, inline buttons, diagnostics, packaging | ⏳ |
 
@@ -39,7 +39,7 @@ replies through `telegram_bot` services.
 |---|---|
 | `/help` | List commands |
 | `/new` | Start a new conversation |
-| `/voice on` | Voice replies (arrives in M2) |
+| `/voice on` | Voice replies (needs a pipeline with TTS) |
 | `/voice off` | Text replies |
 | `/voice both` | Text and voice |
 | `/shop` | Shopping list from a `todo` entity (tap to tick off) |

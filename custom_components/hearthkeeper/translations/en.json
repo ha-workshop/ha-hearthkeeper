@@ -24,12 +24,16 @@
         "data": {
           "pipeline_id": "Voice assistant",
           "reply_mode": "Reply mode",
-          "allow_groups": "Allow group chats"
+          "allow_groups": "Allow group chats",
+          "todo_entity": "Shopping list",
+          "max_voice_seconds": "Longest voice message"
         },
         "data_description": {
           "pipeline_id": "Assist pipeline from Settings > Voice assistants. It already holds the conversation agent, STT, TTS and language. Choose none to echo messages back.",
-          "reply_mode": "How to answer. Voice replies arrive in M2; text is always sent for now.",
-          "allow_groups": "In groups, answer only commands, @mentions and replies to the bot."
+          "reply_mode": "How to answer agent replies. Commands always answer with text.",
+          "allow_groups": "In groups, answer only commands, @mentions and replies to the bot.",
+          "todo_entity": "Todo list used by /shop. Leave empty to disable the command.",
+          "max_voice_seconds": "Voice messages longer than this are refused before decoding."
         }
       }
     }

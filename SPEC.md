@@ -106,31 +106,28 @@ Telegram ──polling──> core telegram_bot (config entry, allowlist)
 
 ### 3.2 Голос на входе
 
-1. `telegram_attachment`, `audio/ogg`.
-2. `telegram_bot.download_file` → **временно** в `/config/telegram_bot/hk_<chat_id>_<id>.ogg`, затем `os.replace` в `<config>/.storage/hearthkeeper/in/<chat_id>/<id>.ogg`. Причина: `download_file` проверяет явный `directory_path` по `allowlist_external_dirs`, а там только `www` и media-каталоги; `.storage` в allowlist не входит. Путь по умолчанию (`/config/telegram_bot`) проверку не проходит, потому что задан неявно. Временный файл удаляется сразу после переноса.
-3. Декодирование **без ffmpeg**: `pyogg.OpusFileStream` (так же делает Shulyaka) → PCM 48 kHz stereo → ресемпл в 16 kHz mono.
-4. Распознавание через API сущности, не через сервис:
+1. `telegram_attachment` с `audio/*` (голосовое — `audio/ogg`); если MIME пустой или `octet-stream`, расширение файла всё равно распознаём (`.ogg`, `.opus`, `.mp3`, `.m4a`, `.wav`).
+2. `telegram_bot.download_file` → каталог интеграции по умолчанию `/config/telegram_bot/hk_<chat_id>_<id>.<ext>`. Путь по умолчанию не проверяется по `allowlist_external_dirs`, поэтому ничего добавлять в конфиг не нужно. Файл удаляется сразу после декодирования.
+3. Декодирование через **ffmpeg** (всегда есть в официальных образах HA): `-ac 1 -ar 16000 -c:a pcm_s16le -f wav pipe:1`. Своих pip-зависимостей нет: у `pyogg` нет Linux-колёс, а `ffmpeg` уже используется ядром. Длительность проверяется `ffprobe`, лимит — `max_voice_seconds` (120 с), размер — 20 МБ (лимит Bot API).
+4. Распознавание и ответ одним вызовом пайплайна, без ручного дёргания STT:
 
    ```python
-   entity = stt.async_get_speech_to_text_entity(hass, engine)
-   meta = stt.SpeechMetadata(
-       language="ru",
-       format=stt.AudioFormats.WAV,
-       codec=stt.AudioCodecs.PCM,
-       bit_rate=stt.AudioBitRates.BITRATE_16,
-       sample_rate=stt.AudioSampleRates.SAMPLERATE_16000,
-       channel=stt.AudioChannels.CHANNEL_MONO,
+   await assist_pipeline.async_pipeline_from_audio_stream(
+       hass,
+       context=Context(),
+       event_callback=on_event,          # stt-end, intent-end, error
+       stt_metadata=SpeechMetadata(...), # WAV, PCM, 16 bit, 16 kHz, mono
+       stt_stream=chunks,
+       pipeline_id=pipeline.id,
+       conversation_id=f"tg:{chat_id}",
+       start_stage=PipelineStage.STT,
+       end_stage=PipelineStage.INTENT,
    )
-   result = await entity.async_process_audio_stream(meta, pcm_stream)
-   text = result.text
    ```
 
-   `SpeechMetadata` требует все шесть полей (`format`, `codec`, `bit_rate`, `sample_rate`, `channel`) — на этом легко споткнуться.
-5. Файл удаляется сразу после распознавания (если не включён `keep_audio`).
+   Пайплайн сам берёт свои STT, агента и язык — второй копии настроек нет. `SpeechMetadata` требует все шесть полей (`format`, `codec`, `bit_rate`, `sample_rate`, `channel`, `language`); WAV/PCM/16 кГц/mono принимают и wyoming, и Google STT.
 
-Провайдер по умолчанию — `stt.faster_whisper_2`, язык из настроек чата (по умолчанию `ru`).
-
-Ограничения: Telegram Bot API отдаёт файлы до **20 МБ**; голосовое 5 минут ≈ 2–3 МБ, запас есть. При превышении — вежливый отказ и просьба записать короче.
+Провайдер по умолчанию — STT выбранного пайплайна (у автора — `stt.faster_whisper_2`). `keep_audio` (M4) сохранит исходник; по умолчанию он удаляется.
 
 ### 3.3 Мозг
 
@@ -159,10 +156,11 @@ reply = result["response"]["speech"]["plain"]["speech"]
 
 ### 3.4 Голос на выходе
 
-1. `tts`-сущность из настроек (`tts.piper`, голос `ru_RU-denis-medium`).
-2. `TextToSpeechEntity.async_get_tts_audio(message, language, options)` → `(extension, bytes)`. Piper отдаёт WAV.
-3. Перекодирование в **OGG/Opus** (`pyogg` encoder, 48 kHz mono, bitrate 32–48 kbps). Это обязательное условие: mp3/wav Telegram покажет как файл, а не как голосовое сообщение.
-4. `telegram_bot.send_voice(file=..., chat_id=..., reply_to_message_id=...)`.
+1. TTS из выбранного пайплайна (`tts.piper`, голос `ru_RU-denis-medium`, язык `ru_RU`).
+2. `tts.async_create_stream(engine=..., language=..., options={"voice": ...})` + `async_set_message(text)` + `async_stream_result()` → родной формат движка (Piper отдаёт WAV). Это тот же стрим, которым пользуется сам пайплайн, поэтому кэш и конвертация ядра работают как обычно.
+3. Перекодирование в **OGG/Opus** через ffmpeg (`libopus`, 48 кГц mono, 32 kbps, `-application voip`). Это обязательное условие: mp3/wav Telegram покажет файлом, а не голосовым сообщением.
+4. Файл кладётся в первый media-каталог (`/media/hearthkeeper/answer_<random>.ogg`). Media-каталоги по умолчанию в `allowlist_external_dirs` и, в отличие от `www`, не отдаются по HTTP. `telegram_bot.send_voice(file=..., chat_id=..., reply_to_message_id=...)`, затем файл удаляется сразу после отправки.
+5. В режиме `both` текст уходит первым, пока синтез ещё идёт. Если TTS упал, ответ всё равно уходит текстом. Дольше `TTS_TIMEOUT` (60 с) синтез не ждём.
 
 Пока идёт обработка — `telegram_bot.send_chat_action` с `record_voice` (или `typing` для текстового режима), чтобы пользователь видел прогресс.
 
@@ -320,7 +318,7 @@ ha-hearthkeeper/
 │   ├── config_flow.py
 │   ├── const.py
 │   ├── transport.py          # bus-события, фильтры, дедуп
-│   ├── voice.py              # pyogg decode/encode, stt/tts вызовы
+│   ├── voice.py              # ffmpeg decode/encode, Assist pipeline, TTS
 │   ├── brain.py              # conversation, режимы ответа
 │   ├── skills/
 │   │   ├── base.py           # Skill protocol, реестр
@@ -380,8 +378,8 @@ ha-hearthkeeper/
 | Этап | Объём | Результат | Оценка |
 |---|---|---|---|
 | **M0. Каркас** | manifest, config flow, transport, эхо-ответ | текст из Telegram → ответ текстом | 2 дня |
-| **M1. Голос на вход** | download_file, pyogg, STT, ошибки | голосовое → распознанный текст → ответ | 2–3 дня |
-| **M2. Голос на выход** | TTS, OGG/Opus, `/voice`, группы, дедуп | US-2, US-3, US-8, US-9 | 2 дня |
+| **M1. Голос на вход** | download_file, ffmpeg → WAV, `async_pipeline_from_audio_stream`, ошибки | голосовое → распознанный текст → ответ | 2–3 дня |
+| **M2. Голос на выход** | TTS-стрим, OGG/Opus, `/voice`, группы, дедуп | US-2, US-3, US-8, US-9 | 2 дня |
 | **M3. Skills** | календарь, дом, брифинг, почта, todo, `/brief` | US-4…US-7, US-10 | 3–4 дня |
 | **M4. Полировка** | `/model`, кнопки, diagnostics, HACS-пакет, доки | публикация | 2–3 дня |
 

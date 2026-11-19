@@ -4,22 +4,34 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+import uuid
+from pathlib import Path
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
-from .assist import PipelineSettings
+from .assist import PipelineSettings, extract_speech
 from .const import (
     CONVERSATION_TIMEOUT,
     DEFAULT_LANGUAGE,
+    DEFAULT_MAX_VOICE_SECONDS,
     REPLY_MODE_BOTH,
     REPLY_MODE_TEXT,
     REPLY_MODE_VOICE,
+    VOICE_DOWNLOAD_LIMIT,
 )
 from .shop import ShopSkill
 from .store import ChatContext, ChatStore
 from .transport import IncomingMessage, MessageKind, Transport, strip_bot_mention
+from .voice import (
+    VoiceTooLongError,
+    async_discard_file,
+    async_run_audio_pipeline,
+    async_stage_voice_reply,
+    async_transcode_to_wav,
+    audio_suffix,
+    is_audio,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,16 +49,25 @@ TEXTS: dict[str, dict[str, str]] = {
             "/help — эта справка"
         ),
         "reset_done": "Контекст разговора сброшен.",
-        "voice_set": (
-            "Режим ответа: {mode}. Голосовые ответы появятся в следующем обновлении."
-        ),
+        "voice_set": "Режим ответа: {mode}.",
         "voice_unknown": (
             "Не понял режим. Используйте /voice on, /voice off или /voice both."
         ),
+        "voice_no_tts": (
+            "Голосовые ответы недоступны: в выбранном пайплайне нет синтеза речи."
+        ),
+        "voice_no_stt": (
+            "Голосовые сообщения недоступны: выберите пайплайн Assist "
+            "с распознаванием речи в настройках Hearthkeeper."
+        ),
+        "voice_too_long": (
+            "Голосовое сообщение слишком длинное. Максимум — {seconds} с."
+        ),
+        "voice_too_big": "Файл слишком большой для расшифровки.",
         "brief_soon": "Брифинг появится в следующем обновлении.",
         "model_soon": "Смена агента появится в следующем обновлении.",
         "attachment_soon": (
-            "Голосовые и файлы пока не поддерживаются — напишите текстом."
+            "Пока понимаю текст и голосовые сообщения — отправьте текст или голосовое."
         ),
         "echo": "Эхо: {text}",
         "timeout": "Ассистент не ответил за минуту. Попробуйте ещё раз.",
@@ -66,11 +87,25 @@ TEXTS: dict[str, dict[str, str]] = {
             "/help — this help"
         ),
         "reset_done": "Conversation context cleared.",
-        "voice_set": "Reply mode: {mode}. Voice replies arrive in the next update.",
+        "voice_set": "Reply mode: {mode}.",
         "voice_unknown": "Unknown mode. Use /voice on, /voice off or /voice both.",
+        "voice_no_tts": (
+            "Voice replies are unavailable: the selected pipeline has no "
+            "text-to-speech engine."
+        ),
+        "voice_no_stt": (
+            "Voice messages are unavailable: pick an Assist pipeline with "
+            "speech-to-text in the Hearthkeeper options."
+        ),
+        "voice_too_long": (
+            "The voice message is too long. The limit is {seconds} seconds."
+        ),
+        "voice_too_big": "The file is too large to transcribe.",
         "brief_soon": "The briefing is coming in the next update.",
         "model_soon": "Switching the agent is coming in the next update.",
-        "attachment_soon": "Voice and files are not supported yet — please send text.",
+        "attachment_soon": (
+            "I understand text and voice messages so far — send text or a voice note."
+        ),
         "echo": "Echo: {text}",
         "timeout": "The assistant did not answer within a minute. Please try again.",
         "failed": "Could not get an answer. Please try again.",
@@ -87,23 +122,6 @@ _VOICE_MODES = {
 }
 
 
-def extract_speech(response: Any) -> str:
-    """Return the plain speech from a ``conversation.process`` response."""
-    if not isinstance(response, dict):
-        return ""
-    result = response.get("response")
-    if not isinstance(result, dict):
-        return ""
-    speech = result.get("speech")
-    if not isinstance(speech, dict):
-        return ""
-    plain = speech.get("plain")
-    if not isinstance(plain, dict):
-        return ""
-    text = plain.get("speech")
-    return text.strip() if isinstance(text, str) else ""
-
-
 class Brain:
     """Turn accepted messages into replies."""
 
@@ -116,6 +134,7 @@ class Brain:
         pipeline: PipelineSettings | None,
         reply_mode: str,
         todo_entity: str | None = None,
+        max_voice_seconds: int = DEFAULT_MAX_VOICE_SECONDS,
     ) -> None:
         """Initialise the brain with entry-level defaults."""
         self.hass = hass
@@ -123,6 +142,7 @@ class Brain:
         self._chats = chats
         self._pipeline = pipeline
         self._default_reply_mode = reply_mode
+        self._max_voice_seconds = max_voice_seconds
         self._shop = ShopSkill(hass, transport, todo_entity)
 
     async def async_handle(self, message: IncomingMessage) -> None:
@@ -135,6 +155,10 @@ class Brain:
 
         if message.kind is MessageKind.COMMAND:
             await self._async_handle_command(message, chat)
+            return
+
+        if message.kind is MessageKind.ATTACHMENT and is_audio(message.attachment):
+            await self._async_answer_voice(message, chat)
             return
 
         if message.kind is MessageKind.ATTACHMENT and not message.text.strip():
@@ -202,7 +226,150 @@ class Brain:
             chat.last_agent = agent_id
             await self._chats.async_save()
 
-        await self._reply(message, reply)
+        await self._async_deliver(message, chat, reply)
+
+    async def _async_answer_voice(
+        self, message: IncomingMessage, chat: ChatContext
+    ) -> None:
+        """Transcribe a voice message with the pipeline and answer it."""
+        attachment = message.attachment
+        if attachment is None:
+            return
+        if self._pipeline is None or not self._pipeline.stt_engine:
+            await self._reply(message, self._text(chat, "voice_no_stt"))
+            return
+        if (
+            attachment.file_size is not None
+            and attachment.file_size > VOICE_DOWNLOAD_LIMIT
+        ):
+            await self._reply(message, self._text(chat, "voice_too_big"))
+            return
+
+        await self._transport.async_send_chat_action(
+            message.chat_id, "typing", thread_id=message.thread_id
+        )
+
+        suffix = audio_suffix(attachment) or ".ogg"
+        identifier = message.message_id or uuid.uuid4().hex
+        file_name = f"hk_{message.chat_id}_{identifier}{suffix}"
+        downloaded = await self._transport.async_download_file(
+            attachment.file_id, file_name=file_name
+        )
+        if downloaded is None:
+            await self._reply(message, self._text(chat, "failed"))
+            return
+
+        try:
+            wav = await async_transcode_to_wav(
+                self.hass,
+                Path(downloaded),
+                max_seconds=self._max_voice_seconds,
+            )
+        except VoiceTooLongError:
+            await self._reply(
+                message,
+                self._text(chat, "voice_too_long").format(
+                    seconds=self._max_voice_seconds
+                ),
+            )
+            return
+        except HomeAssistantError as err:
+            # The error may name the file, never the audio content.
+            _LOGGER.error(
+                "Could not decode a voice message in chat %s (%s)",
+                message.chat_id,
+                type(err).__name__,
+            )
+            await self._reply(message, self._text(chat, "failed"))
+            return
+        finally:
+            await async_discard_file(self.hass, Path(downloaded))
+
+        try:
+            result = await async_run_audio_pipeline(
+                self.hass,
+                pipeline=self._pipeline,
+                conversation_id=chat.conversation_id,
+                wav=wav,
+                language=self._language(chat),
+            )
+        except TimeoutError:
+            await self._reply(message, self._text(chat, "timeout"))
+            return
+        except HomeAssistantError as err:
+            _LOGGER.error(
+                "Voice pipeline failed in chat %s (%s)",
+                message.chat_id,
+                getattr(err, "code", type(err).__name__),
+            )
+            await self._reply(message, self._text(chat, "failed"))
+            return
+
+        if result.conversation_id and result.conversation_id != chat.conversation_id:
+            chat.conversation_id = result.conversation_id
+            chat.last_agent = self._agent_id()
+            await self._chats.async_save()
+
+        if not result.text.strip():
+            await self._reply(message, self._text(chat, "empty"))
+            return
+
+        await self._async_deliver(message, chat, result.text)
+
+    async def _async_deliver(
+        self, message: IncomingMessage, chat: ChatContext, text: str
+    ) -> None:
+        """Send an agent answer as text, voice or both."""
+        mode = chat.reply_mode or self._default_reply_mode
+        text_sent = False
+        if mode == REPLY_MODE_BOTH:
+            # Text first: it arrives while the speech is still being generated.
+            await self._reply(message, text)
+            text_sent = True
+
+        if mode == REPLY_MODE_TEXT or self._pipeline is None:
+            if not text_sent:
+                await self._reply(message, text)
+            return
+        if not self._pipeline.tts_engine:
+            if not text_sent:
+                await self._reply(message, text)
+            return
+
+        await self._transport.async_send_chat_action(
+            message.chat_id, "record_voice", thread_id=message.thread_id
+        )
+
+        staged: Path | None = None
+        try:
+            staged = await async_stage_voice_reply(self.hass, self._pipeline, text)
+        except TimeoutError:
+            _LOGGER.error("Text-to-speech timed out in chat %s", message.chat_id)
+        except HomeAssistantError as err:
+            _LOGGER.error(
+                "Text-to-speech failed in chat %s (%s)",
+                message.chat_id,
+                type(err).__name__,
+            )
+
+        if staged is None:
+            # Text is always better than silence, whatever the mode was.
+            if not text_sent:
+                await self._reply(message, text)
+            return
+
+        try:
+            sent = await self._transport.async_send_voice(
+                message.chat_id,
+                str(staged),
+                thread_id=message.thread_id,
+                reply_to=message.message_id if message.chat_id < 0 else None,
+            )
+        finally:
+            await async_discard_file(self.hass, staged)
+
+        if not sent and not text_sent:
+            await self._reply(message, text)
 
     async def _async_handle_command(
         self, message: IncomingMessage, chat: ChatContext
@@ -239,13 +406,18 @@ class Brain:
             await self._reply(message, self._text(chat, "voice_unknown"))
             return
 
+        if new_mode != REPLY_MODE_TEXT and (
+            self._pipeline is None or not self._pipeline.tts_engine
+        ):
+            await self._reply(message, self._text(chat, "voice_no_tts"))
+            return
+
         chat.reply_mode = new_mode
         await self._chats.async_save()
         await self._reply(message, self._text(chat, "voice_set").format(mode=new_mode))
 
     async def _reply(self, message: IncomingMessage, text: str) -> None:
-        """Send a reply in the modes implemented so far."""
-        # Voice replies arrive in M2; until then every mode answers with text.
+        """Send a plain text reply."""
         reply_to = message.message_id if message.chat_id < 0 else None
         await self._transport.async_send_text(
             message.chat_id,

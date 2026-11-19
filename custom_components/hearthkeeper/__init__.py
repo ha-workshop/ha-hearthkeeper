@@ -21,11 +21,13 @@ from .const import (
     ATTR_CHAT_ID,
     ATTR_TEXT,
     CONF_ALLOW_GROUPS,
+    CONF_MAX_VOICE_SECONDS,
     CONF_PIPELINE_ID,
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
     CONF_TODO_ENTITY,
     DEFAULT_ALLOW_GROUPS,
+    DEFAULT_MAX_VOICE_SECONDS,
     DEFAULT_OPTIONS,
     DEFAULT_REPLY_MODE,
     DOMAIN,
@@ -110,6 +112,9 @@ async def async_setup_entry(
         pipeline=pipeline,
         reply_mode=_str_or_none(options.get(CONF_REPLY_MODE)) or DEFAULT_REPLY_MODE,
         todo_entity=_str_or_none(options.get(CONF_TODO_ENTITY)),
+        max_voice_seconds=(
+            _as_int(options.get(CONF_MAX_VOICE_SECONDS)) or DEFAULT_MAX_VOICE_SECONDS
+        ),
     )
     transport.set_handler(brain.async_handle)
 

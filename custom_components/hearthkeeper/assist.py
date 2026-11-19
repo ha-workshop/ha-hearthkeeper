@@ -13,7 +13,7 @@ installed yet.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
 
@@ -85,3 +85,20 @@ def async_get_pipeline_settings(
     from homeassistant.components import assist_pipeline
 
     return _to_settings(assist_pipeline.async_get_pipeline(hass, pipeline_id))
+
+
+def extract_speech(response: Any) -> str:
+    """Return the plain speech from a conversation result."""
+    if not isinstance(response, dict):
+        return ""
+    result = response.get("response")
+    if not isinstance(result, dict):
+        return ""
+    speech = result.get("speech")
+    if not isinstance(speech, dict):
+        return ""
+    plain = speech.get("plain")
+    if not isinstance(plain, dict):
+        return ""
+    text = plain.get("speech")
+    return text.strip() if isinstance(text, str) else ""

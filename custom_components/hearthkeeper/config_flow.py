@@ -17,6 +17,9 @@ from homeassistant.helpers.selector import (
     BooleanSelector,
     EntitySelector,
     EntitySelectorConfig,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -27,6 +30,7 @@ from homeassistant.helpers.translation import async_get_translations
 from .assist import async_list_pipelines
 from .const import (
     CONF_ALLOW_GROUPS,
+    CONF_MAX_VOICE_SECONDS,
     CONF_PIPELINE_ID,
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
@@ -165,6 +169,21 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                     CONF_TODO_ENTITY,
                     description={"suggested_value": options.get(CONF_TODO_ENTITY)},
                 ): EntitySelector(EntitySelectorConfig(domain="todo")),
+                vol.Optional(
+                    CONF_MAX_VOICE_SECONDS,
+                    default=options.get(
+                        CONF_MAX_VOICE_SECONDS,
+                        DEFAULT_OPTIONS[CONF_MAX_VOICE_SECONDS],
+                    ),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=10,
+                        max=600,
+                        step=10,
+                        mode=NumberSelectorMode.BOX,
+                        unit_of_measurement="s",
+                    )
+                ),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
