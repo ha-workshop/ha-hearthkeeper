@@ -30,8 +30,8 @@ replies through `telegram_bot` services.
    `https://github.com/ha-workshop/ha-hearthkeeper` as an **Integration**.
 2. Install **Hearthkeeper**, restart Home Assistant.
 3. Settings → Devices & services → Add integration → **Hearthkeeper**.
-4. Pick the Telegram bot, then open **Configure** to choose the conversation
-   agent, language and reply mode.
+4. Pick the Telegram bot, then open **Configure** to choose the Assist pipeline
+   (agent, STT, TTS and voice come from it) and the reply mode.
 
 ## Commands
 

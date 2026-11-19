@@ -1,0 +1,13 @@
+{
+  "services": {
+    "say": {
+      "service": "mdi:account-voice"
+    },
+    "reset": {
+      "service": "mdi:restart"
+    },
+    "brief": {
+      "service": "mdi:weather-sunset-up"
+    }
+  }
+}
