@@ -16,7 +16,6 @@ from pathlib import Path
 
 from aiohttp import web
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.http import HomeAssistantView
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,12 +52,43 @@ def _get_template() -> str:
 async def async_register_webapp(hass: HomeAssistant) -> None:
     """Register the WebApp HTTP endpoint.
 
-    The template is loaded in the executor to avoid blocking the event loop.
+    Uses the internal HTTP component to serve both the HTML template and
+    all resources under ``/api/hearthkeeper/webapp``.
     """
     global _WEBAPP_URL
     _WEBAPP_URL = _build_webapp_url(hass)
     await hass.async_add_executor_job(_get_template)
-    hass.http.register_view(WebAppView())
+
+    # Register a simple aiohttp route on the HA HTTP app directly.
+    # This bypasses the auth middleware for the WebApp page (auth is
+    # handled by Telegram initData validation).
+    from homeassistant.components.http import (
+        KEY_AUTHENTICATED,
+        KEY_HASS,
+    )
+
+    app = hass.http.app
+
+    async def _webapp_handler(request: web.Request) -> web.Response:
+        """Return the WebApp HTML."""
+        request[KEY_AUTHENTICATED] = True
+        request[KEY_HASS] = hass
+        return web.Response(
+            text=_TEMPLATE,
+            content_type="text/html; charset=utf-8",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "X-Frame-Options": "ALLOW-FROM https://t.me",
+            },
+        )
+
+    app.router.add_get(WEBAPP_PATH, _webapp_handler)
+
+    _LOGGER.debug(
+        "WebApp registered at %s (external URL: %s)",
+        WEBAPP_PATH,
+        _WEBAPP_URL or "not set",
+    )
 
 
 def _build_webapp_url(hass: HomeAssistant) -> str:
@@ -69,20 +99,3 @@ def _build_webapp_url(hass: HomeAssistant) -> str:
     return external_url.rstrip("/") + WEBAPP_PATH
 
 
-class WebAppView(HomeAssistantView):
-    """Serve the Mini App HTML page."""
-
-    url = WEBAPP_PATH
-    name = WEBAPP_NAME
-    requires_auth = False  # Auth is handled via Telegram initData
-
-    async def get(self, request: web.Request) -> web.Response:
-        """Return the WebApp HTML."""
-        return web.Response(
-            text=_TEMPLATE,
-            content_type="text/html; charset=utf-8",
-            headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "X-Frame-Options": "ALLOW-FROM https://t.me",
-            },
-        )
