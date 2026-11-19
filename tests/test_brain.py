@@ -517,6 +517,76 @@ async def test_mail_command_without_sensors(
     assert transport.sent[0][1].startswith("Почта не настроена")
 
 
+async def test_remind_command_schedules(
+    hass: HomeAssistant,
+) -> None:
+    """``/remind`` accepts a compact delay and confirms the time."""
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(
+        _message(
+            "/remind 20m выключить духовку",
+            kind=MessageKind.COMMAND,
+            command="/remind",
+            args=("20m", "выключить", "духовку"),
+        )
+    )
+    await brain.async_handle(
+        _message(
+            "/remind list",
+            kind=MessageKind.COMMAND,
+            command="/remind",
+            args=("list",),
+        )
+    )
+    await brain.async_handle(
+        _message(
+            "/remind cancel",
+            kind=MessageKind.COMMAND,
+            command="/remind",
+            args=("cancel",),
+        )
+    )
+    brain.async_stop()
+
+    assert transport.sent[0][1].startswith("⏰ Напомню ")
+    assert "выключить духовку" in transport.sent[0][1]
+    assert "Активные напоминания:" in transport.sent[1][1]
+    assert "выключить духовку" in transport.sent[1][1]
+    assert transport.sent[2][1] == "Отменил напоминаний: 1."
+
+
+async def test_remind_phrase_and_usage(hass: HomeAssistant) -> None:
+    """Natural phrases are handled before the agent; broken ones explain."""
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(_message("напомни через 20 минут выключить духовку"))
+    await brain.async_handle(_message("напомни мне о встрече"))
+    brain.async_stop()
+
+    assert "выключить духовку" in transport.sent[0][1]
+    assert transport.sent[1][1].startswith("Не понял время")
+
+
+async def test_remind_list_is_empty_initially(hass: HomeAssistant) -> None:
+    """Listing without reminders is friendly."""
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(
+        _message(
+            "/remind list",
+            kind=MessageKind.COMMAND,
+            command="/remind",
+            args=("list",),
+        )
+    )
+
+    assert transport.sent == [(42, "Активных напоминаний нет.")]
+
+
 async def test_scheduled_briefing_skips_groups(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:

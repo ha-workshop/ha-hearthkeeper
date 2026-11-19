@@ -23,6 +23,7 @@ class RuntimeStats:
     voice_out: int = 0
     briefings: int = 0
     skills: int = 0
+    reminders: int = 0
     errors: int = 0
     last_error: str | None = None
     last_error_at: str | None = None
@@ -43,6 +44,7 @@ class RuntimeStats:
             "voice_out": self.voice_out,
             "briefings": self.briefings,
             "skills": self.skills,
+            "reminders": self.reminders,
             "errors": self.errors,
             "last_error": self.last_error,
             "last_error_at": self.last_error_at,

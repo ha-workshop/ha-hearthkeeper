@@ -169,6 +169,7 @@ async def async_setup_entry(
         skills=skill_router,
     )
     transport.set_handler(brain.async_handle)
+    entry.async_on_unload(brain.async_stop)
 
     runtime = HearthkeeperRuntime(
         telegram_entry_id=telegram_entry.entry_id,

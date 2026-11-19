@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.util import dt as dt_util
 
 from .assist import PipelineSettings, extract_speech
 from .brief import BriefingSources, async_build_briefing
@@ -22,6 +24,13 @@ from .const import (
     VOICE_DOWNLOAD_LIMIT,
 )
 from .mail import Mailbox, async_mail_digest
+from .reminders import (
+    ReminderManager,
+    ReminderRequest,
+    looks_like_reminder,
+    parse_reminder,
+    parse_reminder_command,
+)
 from .shop import ShopSkill
 from .skills import SkillRouter
 from .stats import RuntimeStats
@@ -50,6 +59,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/shop — список покупок\n"
             "/brief — сводка дня\n"
             "/mail — что в почте\n"
+            "/remind 20m текст — напоминание\n"
             "/model — сменить агента\n"
             "/help — эта справка"
         ),
@@ -88,6 +98,15 @@ TEXTS: dict[str, dict[str, str]] = {
         "mail_not_configured": (
             "Почта не настроена: выберите сенсоры IMAP в настройках Hearthkeeper."
         ),
+        "reminder_set": "⏰ Напомню {when}: {text}",
+        "reminder_usage": (
+            "Не понял время. Напишите, например: /remind 20m выключить духовку, "
+            "/remind 20:30 позвонить, или «напомни через 20 минут …»."
+        ),
+        "reminder_empty": "Активных напоминаний нет.",
+        "reminder_header": "Активные напоминания:",
+        "reminder_item": "• {when} — {text}",
+        "reminder_cancelled": "Отменил напоминаний: {count}.",
         "timeout": "Ассистент не ответил за минуту. Попробуйте ещё раз.",
         "failed": "Не получилось получить ответ. Попробуйте ещё раз.",
         "empty": "Ассистент вернул пустой ответ.",
@@ -102,6 +121,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/shop — shopping list\n"
             "/brief — daily briefing\n"
             "/mail — what is in the mail\n"
+            "/remind 20m text — a reminder\n"
             "/model — switch the agent\n"
             "/help — this help"
         ),
@@ -137,6 +157,15 @@ TEXTS: dict[str, dict[str, str]] = {
         "mail_not_configured": (
             "Mail is not configured: pick IMAP sensors in the Hearthkeeper options."
         ),
+        "reminder_set": "⏰ I will remind you at {when}: {text}",
+        "reminder_usage": (
+            "I could not read the time. Try /remind 20m turn off the oven, "
+            "/remind 20:30 call mom, or “remind me in 20 minutes to …”."
+        ),
+        "reminder_empty": "There are no active reminders.",
+        "reminder_header": "Active reminders:",
+        "reminder_item": "• {when} — {text}",
+        "reminder_cancelled": "Cancelled reminders: {count}.",
         "timeout": "The assistant did not answer within a minute. Please try again.",
         "failed": "Could not get an answer. Please try again.",
         "empty": "The assistant returned an empty answer.",
@@ -190,6 +219,7 @@ class Brain:
         self._skills = skills or SkillRouter(
             hass, self._briefing, mailbox, allow_cloud_for_mail
         )
+        self._reminders = ReminderManager(hass, self._async_deliver_reminder)
         # The callback data of an agent button is only an index; the list it
         # points at lives here so long entity ids never hit Telegram's limit.
         self._agent_choices: dict[int, tuple[str, ...]] = {}
@@ -235,6 +265,14 @@ class Brain:
         )
 
         language = self._language(chat)
+        if looks_like_reminder(text, language):
+            request = parse_reminder(text, language)
+            if request is None:
+                await self._reply(message, self._text(chat, "reminder_usage"))
+                return
+            await self._async_add_reminder(message, chat, request)
+            return
+
         skill = self._skills.match(text, language)
         if skill is not None:
             self._stats.skills += 1
@@ -543,6 +581,8 @@ class Brain:
             await self._async_briefing_command(message, chat)
         elif command == "mail":
             await self._async_mail_command(message, chat)
+        elif command in ("remind", "reminder"):
+            await self._async_reminder_command(message, chat)
         elif command == "model":
             await self._async_model_command(message, chat)
         else:
@@ -735,6 +775,79 @@ class Brain:
         )
         await self._reply(message, text or self._text(chat, "mail_not_configured"))
 
+    async def _async_reminder_command(
+        self, message: IncomingMessage, chat: ChatContext
+    ) -> None:
+        """Add, list or cancel reminders for this chat."""
+        language = self._language(chat)
+        argument = " ".join(message.args).strip()
+        lowered = argument.lower()
+
+        if lowered in ("list", "список"):
+            await self._async_list_reminders(message, chat)
+            return
+        if lowered in ("cancel", "clear", "отмена", "отмени"):
+            count = self._reminders.cancel_all(message.chat_id)
+            await self._reply(
+                message, self._text(chat, "reminder_cancelled").format(count=count)
+            )
+            return
+
+        request = parse_reminder_command(argument, language)
+        if request is None:
+            await self._reply(message, self._text(chat, "reminder_usage"))
+            return
+        await self._async_add_reminder(message, chat, request)
+
+    async def _async_list_reminders(
+        self, message: IncomingMessage, chat: ChatContext
+    ) -> None:
+        """Send the active reminders of this chat."""
+        items = self._reminders.items(message.chat_id)
+        if not items:
+            await self._reply(message, self._text(chat, "reminder_empty"))
+            return
+        lines = [self._text(chat, "reminder_header")]
+        lines.extend(
+            self._text(chat, "reminder_item").format(
+                when=_format_due(item.due), text=item.text
+            )
+            for item in items
+        )
+        await self._reply(message, "\n".join(lines))
+
+    async def _async_add_reminder(
+        self, message: IncomingMessage, chat: ChatContext, request: ReminderRequest
+    ) -> None:
+        """Schedule one reminder and confirm it with the local time."""
+        error = self._reminders.async_add(
+            chat_id=message.chat_id,
+            thread_id=message.thread_id,
+            text=request.text,
+            due=request.due,
+            language=self._language(chat),
+        )
+        if error is not None:
+            await self._reply(message, error)
+            return
+        self._stats.reminders += 1
+        await self._reply(
+            message,
+            self._text(chat, "reminder_set").format(
+                when=_format_due(request.due), text=request.text
+            ),
+        )
+
+    async def _async_deliver_reminder(
+        self, chat_id: int, thread_id: int | None, text: str
+    ) -> None:
+        """Send a due reminder to its chat."""
+        await self._transport.async_send_text(chat_id, text, thread_id=thread_id)
+
+    def async_stop(self) -> None:
+        """Cancel pending reminders when the config entry unloads."""
+        self._reminders.async_stop()
+
     async def _async_voice_command(
         self, message: IncomingMessage, chat: ChatContext
     ) -> None:
@@ -799,3 +912,8 @@ class Brain:
 
 
 __all__ = ["MODEL_CALLBACK", "Brain", "extract_speech"]
+
+
+def _format_due(due: datetime) -> str:
+    """Format a reminder time in the local timezone."""
+    return dt_util.as_local(due).strftime("%d.%m %H:%M")

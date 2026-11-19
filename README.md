@@ -61,6 +61,7 @@ replies through `telegram_bot` services.
 | `/shop` | Shopping list from a `todo` entity (tap to tick off, `/shop del` asks first) |
 | `/brief` | Daily briefing: weather, calendar, house, shopping list, mail |
 | `/mail` | Recent mail: unread counters and senders/subjects |
+| `/remind 20m text` | Reminder in 20 minutes; also `/remind 20:30 text`, `/remind list`, `/remind cancel` |
 | `/model` | Switch the conversation agent for this chat (buttons or `/model <name>`) |
 
 ## Skills
@@ -106,6 +107,10 @@ data:
   text: "The garage door is still open"
 ```
 
+Natural phrases work too: “напомни через 20 минут …” and “remind me in 20
+minutes to …”. Reminders are kept in memory and also create a persistent
+notification, so a Home Assistant restart clears the pending ones.
+
 Add `mode: voice` (or `both`) to speak the message with the pipeline voice;
 without it the chat's own reply mode is used.
 
@@ -116,8 +121,8 @@ without it the chat's own reply mode is used.
 ## Privacy
 
 - Only control data is stored: chat id, conversation id, agent, reply mode,
-  language, timestamps. Message texts and mail/calendar content never touch
-  disk.
+  language, timestamps. Message texts, reminders and mail/calendar content
+  never touch disk; pending reminders live in memory only.
 - Nothing leaves the house except Telegram itself. Cloud agents are opt-in via
   the agent you choose, and mail summaries are a separate opt-in
   (**AI summary for mail**).
