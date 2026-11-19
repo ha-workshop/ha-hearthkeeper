@@ -1,4 +1,8 @@
-# Hearthkeeper
+<p align="center"><img src="https://raw.githubusercontent.com/ha-workshop/ha-hearthkeeper/main/docs/icon.png" width="128" height="128" alt="Hearthkeeper"></p>
+
+# Hearthkeeper — голосовой ассистент для Home Assistant
+
+[English](README.md) · **Русский**
 
 Голосовой ассистент в Telegram для Home Assistant — локальные STT/TTS,
 календарь, почта и состояние дома, с тем conversation-агентом, который у вас
@@ -8,8 +12,9 @@
 ядро `telegram_bot`: Hearthkeeper слушает его события на шине, общается с
 агентом `conversation` и отвечает через сервисы `telegram_bot`.
 
-[![Открыть Hearthkeeper в HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ha-workshop&repository=ha-hearthkeeper&category=integration)
-[![Добавить интеграцию Hearthkeeper](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hearthkeeper)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
+[![Release](https://img.shields.io/github/v/release/ha-workshop/ha-hearthkeeper)](https://github.com/ha-workshop/ha-hearthkeeper/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## Статус
 
@@ -19,7 +24,7 @@
 | M1 | голос на вход: OGG из Telegram → WAV → пайплайн Assist | ✅ |
 | M2 | голос на выход, группы, дедуп после рестарта | ✅ |
 | M3 | брифинг: календарь, погода, почта, покупки и состояние дома | ✅ |
-| M4 | `/model`, кнопки, diagnostics, упаковка | 🚧 |
+| M4 | `/model`, кнопки, diagnostics, упаковка | ✅ |
 
 ## Требования
 
@@ -29,12 +34,18 @@
 
 ## Установка
 
-1. Нажмите **Открыть Hearthkeeper в HACS** выше или добавьте
-   `https://github.com/ha-workshop/ha-hearthkeeper` как пользовательский
-   репозиторий типа **Integration** в HACS.
-2. Установите **Hearthkeeper** и перезапустите Home Assistant.
-3. Нажмите **Добавить интеграцию Hearthkeeper** выше или откройте
-   **Настройки → Устройства и службы → Добавить интеграцию → Hearthkeeper**.
+1. Откройте репозиторий в HACS:
+
+   [![Открыть в HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ha-workshop&repository=ha-hearthkeeper&category=integration)
+
+   Или вручную: HACS → ⋮ → **Пользовательские репозитории** →
+   `https://github.com/ha-workshop/ha-hearthkeeper`, тип **Integration**.
+2. Скачайте **Hearthkeeper**, перезапустите Home Assistant.
+3. Добавьте интеграцию:
+
+   [![Добавить интеграцию](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hearthkeeper)
+
+   (*Настройки → Устройства и службы → Добавить интеграцию → Hearthkeeper*.)
 4. Выберите бота Telegram, затем откройте **Настроить** и укажите пайплайн
    Assist (агент, STT, TTS и голос берутся из него) и режим ответа.
 

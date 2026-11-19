@@ -1,4 +1,8 @@
-# Hearthkeeper
+<p align="center"><img src="https://raw.githubusercontent.com/ha-workshop/ha-hearthkeeper/main/docs/icon.png" width="128" height="128" alt="Hearthkeeper"></p>
+
+# Hearthkeeper — Telegram assistant for Home Assistant
+
+**English** · [Русский](README.ru.md)
 
 Telegram voice assistant for Home Assistant — local STT/TTS, calendar, mail and
 house status, with the conversation agent you already use.
@@ -8,8 +12,9 @@ Hearthkeeper does not implement its own Telegram client. The core
 Hearthkeeper listens to its bus events, talks to a `conversation` agent and
 replies through `telegram_bot` services.
 
-[![Open Hearthkeeper in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ha-workshop&repository=ha-hearthkeeper&category=integration)
-[![Add the Hearthkeeper integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hearthkeeper)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
+[![Release](https://img.shields.io/github/v/release/ha-workshop/ha-hearthkeeper)](https://github.com/ha-workshop/ha-hearthkeeper/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ## Status
 
@@ -19,7 +24,7 @@ replies through `telegram_bot` services.
 | M1 | voice input: Telegram OGG → WAV → Assist pipeline | ✅ |
 | M2 | voice output, groups, dedup across restarts | ✅ |
 | M3 | briefing from calendar, weather, mail, todo and house state | ✅ |
-| M4 | `/model`, inline buttons, diagnostics, packaging | 🚧 |
+| M4 | `/model`, inline buttons, diagnostics, packaging | ✅ |
 
 ## Requirements
 
@@ -27,14 +32,20 @@ replies through `telegram_bot` services.
 - A `telegram_bot` config entry in polling mode with at least one allowed chat
 - A `conversation` agent; without one Hearthkeeper echoes messages back
 
-## Installation
+## Install
 
-1. Click **Open Hearthkeeper in HACS** above, or add
-   `https://github.com/ha-workshop/ha-hearthkeeper` as a custom repository of
-   type **Integration** in HACS.
-2. Install **Hearthkeeper** and restart Home Assistant.
-3. Click **Add the Hearthkeeper integration** above, or open
-   **Settings → Devices & services → Add integration → Hearthkeeper**.
+1. Open the repository in HACS:
+
+   [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ha-workshop&repository=ha-hearthkeeper&category=integration)
+
+   Or by hand: HACS → ⋮ → **Custom repositories** →
+   `https://github.com/ha-workshop/ha-hearthkeeper`, type **Integration**.
+2. Download **Hearthkeeper**, restart Home Assistant.
+3. Add the integration:
+
+   [![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hearthkeeper)
+
+   (*Settings → Devices & services → Add integration → Hearthkeeper*.)
 4. Pick the Telegram bot, then open **Configure** to choose the Assist pipeline
    (agent, STT, TTS and voice come from it) and the reply mode.
 
