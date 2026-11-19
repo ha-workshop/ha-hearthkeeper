@@ -350,15 +350,16 @@ ha-hearthkeeper/
 {
   "domain": "hearthkeeper",
   "name": "Hearthkeeper",
-  "codeowners": ["@mZer0ne"],
+  "after_dependencies": [
+    "assist_pipeline", "calendar", "conversation", "imap",
+    "stt", "telegram_bot", "todo", "tts"
+  ],
+  "codeowners": ["@mZer0ne", "@ha-workshop"],
   "config_flow": true,
-  "dependencies": ["conversation", "telegram_bot"],
-  "after_dependencies": ["stt", "tts", "calendar", "imap", "todo"],
   "documentation": "https://github.com/ha-workshop/ha-hearthkeeper",
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/ha-workshop/ha-hearthkeeper/issues",
-  "requirements": ["pyogg==0.6.14a1"],
   "version": "0.1.0"
 }
 ```
