@@ -75,7 +75,8 @@ async def async_register_webapp(hass: HomeAssistant) -> None:
         request[KEY_HASS] = hass
         return web.Response(
             text=_TEMPLATE,
-            content_type="text/html; charset=utf-8",
+            content_type="text/html",
+            charset="utf-8",
             headers={
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "X-Frame-Options": "ALLOW-FROM https://t.me",
