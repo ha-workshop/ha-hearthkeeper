@@ -6,251 +6,196 @@
 <title>Hearthkeeper</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg: var(--tg-theme-bg-color, #fff);
-  --text: var(--tg-theme-text-color, #000);
-  --hint: var(--tg-theme-hint-color, #999);
-  --link: var(--tg-theme-link-color, #2481cc);
-  --btn: var(--tg-theme-button-color, #2481cc);
-  --btn-text: var(--tg-theme-button-text-color, #fff);
-  --sec-bg: var(--tg-theme-secondary-bg-color, #f0f0f0);
-  --section-bg: var(--tg-theme-section-bg-color, var(--bg));
-  --section-header: var(--tg-theme-section-header-text-color, var(--hint));
-  --radius: 12px;
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--tg-theme-secondary-bg-color,#f4f4f5);
+  color:var(--tg-theme-text-color,#000);
+  padding:12px 16px 32px;
+  max-width:480px;margin:0 auto;
 }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--sec-bg);
-  color: var(--text);
-  padding: 16px 12px 24px;
-  max-width: 600px;
-  margin: 0 auto;
+.profile{display:flex;align-items:center;gap:14px;margin-bottom:20px;padding:4px 0}
+.profile-avatar{width:52px;height:52px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--tg-theme-hint-color,#ccc)}
+.profile-avatar img{width:100%;height:100%;object-fit:cover}
+.profile-name{font-size:18px;font-weight:600;line-height:1.2}
+.profile-id{font-size:13px;color:var(--tg-theme-hint-color,#8e8e93)}
+.card{
+  background:var(--tg-theme-section-bg-color,var(--tg-theme-bg-color,#fff));
+  border-radius:12px;overflow:hidden;margin-bottom:12px;
 }
-h1 {
-  font-size: 22px;
-  font-weight: 700;
-  margin-bottom: 4px;
+.card-header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 16px 8px;
+  font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;
+  color:var(--tg-theme-section-header-text-color,var(--tg-theme-hint-color,#8e8e93));
 }
-.subtitle {
-  font-size: 14px;
-  color: var(--hint);
-  margin-bottom: 16px;
+.card-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:11px 16px;min-height:44px;
+  border-top:1px solid var(--tg-theme-section-separator-color,var(--tg-theme-secondary-bg-color,#efeff0));
 }
-.section {
-  background: var(--section-bg);
-  border-radius: var(--radius);
-  padding: 12px 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+.card-row:first-of-type{border-top:none}
+.card-row-label{font-size:15px}
+.card-row-hint{font-size:13px;color:var(--tg-theme-hint-color,#8e8e93)}
+.card-row-value{
+  font-size:15px;color:var(--tg-theme-hint-color,#8e8e93);
+  display:flex;align-items:center;gap:6px;
 }
-.section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--section-header);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 10px;
+.card-row-action{color:var(--tg-theme-link-color,#007aff);font-size:15px;background:none;border:none;cursor:pointer;padding:4px 0}
+.card-row-action.danger{color:var(--tg-theme-destructive-text-color,#ff3b30)}
+.toggle{
+  width:44px;height:28px;border-radius:14px;background:#e9e9eb;
+  position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;
 }
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--sec-bg);
+.toggle.on{background:var(--tg-theme-button-color,#34c759)}
+.toggle::after{
+  content:'';position:absolute;top:2px;left:2px;
+  width:24px;height:24px;border-radius:50%;background:#fff;
+  transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.15);
 }
-.row:last-child { border-bottom: none; }
-.row-label { font-size: 15px; }
-.row-hint { font-size: 13px; color: var(--hint); margin-top: 1px; }
-.action-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+.toggle.on::after{transform:translateX(16px)}
+.badge{
+  font-size:12px;padding:2px 8px;border-radius:10px;
+  background:var(--tg-theme-secondary-bg-color,#f4f4f5);
+  color:var(--tg-theme-hint-color,#8e8e93);
 }
-.action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 10px;
-  background: var(--btn);
-  color: var(--btn-text);
-  font-size: 14px;
-  font-weight: 500;
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.15s;
+.chevron{color:var(--tg-theme-hint-color,#c7c7cc);font-size:14px}
+.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.action-btn{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:14px 8px;font-size:15px;
+  background:none;border:none;color:var(--tg-theme-link-color,#007aff);
+  cursor:pointer;border-top:1px solid var(--tg-theme-section-separator-color,#efeff0);
 }
-.action-btn:active { opacity: 0.7; }
-.toggle {
-  width: 44px;
-  height: 26px;
-  border-radius: 13px;
-  background: #ccc;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.2s;
-  flex-shrink: 0;
-}
-.toggle.on { background: var(--btn); }
-.toggle::after {
-  content: '';
-  position: absolute;
-  top: 2px; left: 2px;
-  width: 22px; height: 22px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform 0.2s;
-}
-.toggle.on::after { transform: translateX(18px); }
-.badge {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--sec-bg);
-  color: var(--hint);
-}
-#status {
-  text-align: center;
-  padding: 4px;
-  font-size: 13px;
-  color: var(--hint);
-  margin-bottom: 8px;
-}
+.action-btn:first-child,.action-btn:nth-child(2){border-top:none}
+.action-btn:nth-child(odd){border-right:1px solid var(--tg-theme-section-separator-color,#efeff0)}
+#status{text-align:center;padding:6px 0;font-size:13px;color:var(--tg-theme-hint-color,#8e8e93)}
 </style>
 </head>
 <body>
 <div id="status">connecting…</div>
-<h1 id="greeting">Hearthkeeper</h1>
-<div class="subtitle" id="user-info"></div>
 
-<div class="section">
-  <div class="section-title">Quick actions</div>
+<!-- Profile -->
+<div class="profile">
+  <div class="profile-avatar"><img id="avatar" src="" alt=""></div>
+  <div>
+    <div class="profile-name" id="greeting">Hearthkeeper</div>
+    <div class="profile-id" id="user-id"></div>
+  </div>
+</div>
+
+<!-- Quick actions -->
+<div class="card">
+  <div class="card-header">Quick actions</div>
   <div class="action-grid">
     <button class="action-btn" onclick="sendCmd('/brief')">📅 Briefing</button>
     <button class="action-btn" onclick="sendCmd('/shop')">🛒 Shopping</button>
     <button class="action-btn" onclick="sendCmd('/mail')">✉️ Mail</button>
-    <button class="action-btn" onclick="sendCmd('/new')">🔄 New chat</button>
+    <button class="action-btn" onclick="sendCmd('/new')">🔄 Reset</button>
   </div>
 </div>
 
-<div class="section">
-  <div class="section-title">Chat settings</div>
-  <div class="row">
-    <div>
-      <div class="row-label">Voice replies</div>
-      <div class="row-hint">Bot speaks the answer</div>
+<!-- Telegram -->
+<div class="card">
+  <div class="card-header">Telegram</div>
+  <div class="card-row">
+    <span class="card-row-label">Bot status</span>
+    <div class="card-row-value"><span class="badge" style="background:#30d158;color:#fff">Connected</span></div>
+  </div>
+  <div class="card-row">
+    <span class="card-row-label">Bot</span>
+    <div class="card-row-value">
+      <span id="bot-username">@hearth_bot</span>
+      <button class="card-row-action" onclick="sendCmd('/help')">Help</button>
     </div>
+  </div>
+</div>
+
+<!-- Chat settings -->
+<div class="card">
+  <div class="card-header">Chat settings</div>
+  <div class="card-row">
+    <div><div class="card-row-label">Voice replies</div><div class="card-row-hint">Bot speaks the answer</div></div>
     <div class="toggle" id="voice-toggle" onclick="toggleVoice()"></div>
   </div>
-  <div class="row">
-    <div>
-      <div class="row-label">Agent</div>
-      <div class="row-hint" id="current-agent">pipeline</div>
-    </div>
-    <button class="action-btn" style="padding:6px 14px;font-size:13px" onclick="switchAgent()">Change</button>
+  <div class="card-row">
+    <div><div class="card-row-label">Agent</div><div class="card-row-hint" id="current-agent">Pipeline default</div></div>
+    <button class="card-row-action" onclick="sendCmd('/model')">Change</button>
+  </div>
+  <div class="card-row">
+    <div><div class="card-row-label">Quiet hours</div><div class="card-row-hint" id="quiet-range">23:00 – 07:00</div></div>
+    <span class="chevron">›</span>
   </div>
 </div>
 
-<div class="section">
-  <div class="section-title">Briefing sources</div>
-  <div class="row">
-    <div>
-      <div class="row-label">Weather</div>
-      <div class="row-hint" id="weather-source">not set</div>
-    </div>
+<!-- Briefing -->
+<div class="card">
+  <div class="card-header">Briefing</div>
+  <div class="card-row">
+    <div><div class="card-row-label">Weather</div><div class="card-row-hint" id="weather-source">Not set</div></div>
     <span class="badge" id="weather-status">—</span>
   </div>
-  <div class="row">
-    <div>
-      <div class="row-label">Calendar</div>
-      <div class="row-hint" id="calendar-count">0 calendars</div>
-    </div>
+  <div class="card-row">
+    <div><div class="card-row-label">Calendar</div><div class="card-row-hint" id="calendar-count">0 calendars</div></div>
     <span class="badge" id="calendar-status">—</span>
   </div>
-  <div class="row">
-    <div>
-      <div class="row-label">Mail</div>
-      <div class="row-hint" id="mail-count">0 sensors</div>
-    </div>
+  <div class="card-row">
+    <div><div class="card-row-label">Mail</div><div class="card-row-hint" id="mail-count">0 sensors</div></div>
     <span class="badge" id="mail-status">—</span>
   </div>
-  <div class="row">
-    <div>
-      <div class="row-label">Home status</div>
-    </div>
+  <div class="card-row">
+    <div><div class="card-row-label">Home status</div></div>
     <div class="toggle on" id="home-toggle" onclick="toggleHome()"></div>
   </div>
 </div>
 
-<div class="section">
-  <div class="section-title">Quiet hours</div>
-  <div class="row">
-    <div>
-      <div class="row-label">Start</div>
-    </div>
-    <span id="quiet-start" style="font-size:15px">23:00</span>
+<!-- Account -->
+<div class="card">
+  <div class="card-header">Account</div>
+  <div class="card-row">
+    <span class="card-row-label">Language</span>
+    <div class="card-row-value"><span id="language">English</span><span class="chevron" style="margin-left:6px">›</span></div>
   </div>
-  <div class="row">
-    <div>
-      <div class="row-label">End</div>
-    </div>
-    <span id="quiet-end" style="font-size:15px">07:00</span>
+  <div class="card-row">
+    <span class="card-row-label">Version</span>
+    <div class="card-row-value"><span class="badge" id="version">0.1.0</span></div>
   </div>
-</div>
-
-<div class="section">
-  <div class="section-title">About</div>
-  <div class="row">
-    <div>
-      <div class="row-label">Version</div>
-    </div>
-    <span class="badge" id="version">0.1.0</span>
-  </div>
-  <div class="row">
-    <div>
-      <div class="row-label">Uptime</div>
-    </div>
-    <span class="badge" id="uptime">—</span>
+  <div class="card-row">
+    <span class="card-row-label">Diagnostics</span>
+    <button class="card-row-action danger">Download</button>
   </div>
 </div>
 
 <script>
-(function() {
+(function(){
   const tg = window.Telegram.WebApp;
   tg.ready();
   tg.expand();
 
   const user = tg.initDataUnsafe?.user;
   if (user) {
-    document.getElementById('greeting').textContent = 'Hello, ' + (user.first_name || 'there');
-    document.getElementById('user-info').textContent = user.id ? 'ID: ' + user.id : '';
+    document.getElementById('greeting').textContent = user.first_name || 'Hearthkeeper';
+    document.getElementById('user-id').textContent = 'tg id ' + (user.id || '');
+    const img = document.getElementById('avatar');
+    if (user.photo_url) { img.src = user.photo_url; }
   }
-  document.getElementById('status').textContent = 'connected';
+  document.getElementById('status').textContent = '';
 
-  function sendCmd(cmd) {
-    tg.sendData(cmd);
-  }
-
-  // Toggle voice — sendData + update UI
   let voiceOn = false;
-  window.toggleVoice = function() {
+  window.toggleVoice = function(){
     voiceOn = !voiceOn;
-    document.getElementById('voice-toggle').classList.toggle('on', voiceOn);
+    const el = document.getElementById('voice-toggle');
+    el.classList.toggle('on', voiceOn);
     tg.sendData('/voice ' + (voiceOn ? 'on' : 'off'));
   };
 
   let homeOn = true;
-  window.toggleHome = function() {
+  window.toggleHome = function(){
     homeOn = !homeOn;
     document.getElementById('home-toggle').classList.toggle('on', homeOn);
-    // Home status toggle — just a UI hint, options flow is the source of truth
   };
 
-  window.switchAgent = function() {
-    tg.sendData('/model');
-  };
+  window.sendCmd = function(cmd){ tg.sendData(cmd); };
 })();
 </script>
 </body>
