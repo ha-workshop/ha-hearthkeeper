@@ -90,7 +90,7 @@ Telegram ──polling──> core telegram_bot (config entry, allowlist)
 | `telegram_text` | текст | `text`, `chat_id`, `id`, `user_id`, `message_thread_id` |
 | `telegram_command` | `/brief`, `/voice` | `command` (со слэшем), `args` (список) |
 | `telegram_attachment` | файл, в т.ч. голосовое | `file_id`, `file_mime_type`, `file_size`, `chat_id` |
-| `telegram_callback` | inline-кнопки (M2) | `data`, `chat_id`, `id` |
+| `telegram_callback` | inline-кнопки `/shop` | `data`, `chat_id`, `id` (id запроса), `message.message_id` |
 
 Факты, на которых держится решение (проверено по ядру HA 2026.11):
 
@@ -150,6 +150,8 @@ reply = result["response"]["speech"]["plain"]["speech"]
 (Форма ответа: `response.speech.plain.speech`; `conversation_id` возвращается рядом — его и сохраняем, а не собираем вручную.)
 
 - `conversation_id` = `tg:<chat_id>` — контекст на чат, отдельно для групп.
+- Неизвестные команды не перехватываем: `/video` и подобные обрабатывают автоматизации пользователя, поэтому Hearthkeeper на них молчит (только `DEBUG`-запись), а не отвечает «не знаю такую команду».
+- `/shop` — наш скилл (`shop.py`): список берётся из `todo.*`, кнопки `shop_done:<uid>` отвечают только на свой префикс; чужие callback (`/video_*`) не трогаем и не подтверждаем, чтобы не сломать автоматизации.
 - По умолчанию агент локальный (`conversation.qwen_2_5_3b_conversation`), `prefer_local_intents`.
 - Переключение агента командой `/model` (M3).
 - Если агент вернул `speech` с `ssml`/`plain` — берём `plain`.
@@ -222,7 +224,7 @@ class Skill(Protocol):
 | FR-8 | Таймаут и текстовая ошибка вместо зависания | MVP |
 | FR-9 | Скиллы `calendar_events`, `home_status`, `brief` | MVP |
 | FR-10 | Скилл `mail_digest` с опциональной облачной суммаризацией | M3 |
-| FR-11 | `/brief`, `/voice on|off`, `/model`, `/new`, `/help` | M2–M3 |
+| FR-11 | `/brief`, `/voice on|off`, `/model`, `/new`, `/help`, `/shop` | M0–M3 |
 | FR-12 | Группы: ответ только на `@bot`, `telegram_command` и reply на сообщение бота | M2 |
 | FR-13 | Утренний брифинг по расписанию | M3 |
 | FR-14 | Инлайн-кнопки для подтверждений (создать событие, добавить задачу) | M4 |
@@ -236,24 +238,24 @@ class Skill(Protocol):
 
 1. Выбрать существующий config entry `telegram_bot` (polling).
 2. Выбрать чат(ы) — подтягиваем из allowlist ядра; иначе просим прислать `/start` боту и подсказываем chat_id.
-3. Выбрать агента (`conversation.*`), STT (`stt.*`), TTS (`tts.*`) и голос.
-4. Язык (`ru` / `en`), режим ответа (`text` / `voice` / `both`).
+3. Выбрать Assist-пайплайн («Настройки → Голосовые ассистенты», `/config/voice-assistants/assistants`). Агент, STT, TTS, голос и язык берутся из него, второй копии настроек не заводим.
+4. Режим ответа (`text` / `voice` / `both`). Язык служебных ответов — язык пайплайна, иначе язык HA.
 
 ### 5.2 Options flow
 
 | Параметр | По умолчанию | Комментарий |
 |---|---|---|
+| `pipeline_id` | нет (эхо) | пайплайн Assist; в нём же агент, STT, TTS, голос, язык |
 | `reply_mode` | `text` | per-chat переопределяется `/voice` |
-| `agent_id` | локальный агент | `/model` меняет per-chat |
-| `stt_engine` | `stt.faster_whisper_2` | |
-| `tts_engine` / `voice` | `tts.piper` / `ru_RU-denis-medium` | |
-| `language` | `ru` | влияет на STT и sentences |
 | `allow_groups` | `false` | требует username бота |
+| `todo_entity` | нет | `todo.*` для `/shop`; без него команда отвечает «не настроено» |
 | `keep_audio` | `false` | хранить исходные OGG |
 | `allow_cloud_for_mail` | `false` | разрешить AI Task в облаке для почты |
 | `brief_time` | `08:00` | `null` — выключено |
 | `brief_chats` | первый allowlist-чат | |
 | `max_voice_seconds` | `120` | защита от «лекций» |
+
+`agent_id`, `stt_engine`, `tts_engine`, `tts_voice` и `language` в options **не дублируются**: их единственный источник — пайплайн Assist. Per-chat переопределения (`/model`, язык) живут в `ChatContext` (§6), а не в options.
 
 ### 5.3 Сервисы компонента
 

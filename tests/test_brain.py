@@ -153,13 +153,13 @@ async def test_voice_command_changes_reply_mode(hass: HomeAssistant) -> None:
     assert transport.sent[0][1].startswith("Режим ответа: voice")
 
 
-async def test_unknown_command_is_reported(hass: HomeAssistant) -> None:
-    """Unknown commands get a hint instead of silence."""
+async def test_foreign_command_is_ignored(hass: HomeAssistant) -> None:
+    """Commands owned by other automations do not get a reply."""
     transport = FakeTransport()
     brain = _brain(hass, transport)
 
     await brain.async_handle(
-        _message("/nope", kind=MessageKind.COMMAND, command="/nope", args=())
+        _message("/video", kind=MessageKind.COMMAND, command="/video", args=())
     )
 
-    assert "Не знаю такую команду" in transport.sent[0][1]
+    assert transport.sent == []

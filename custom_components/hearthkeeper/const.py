@@ -18,6 +18,7 @@ CONF_TELEGRAM_ENTRY: Final = "telegram_entry"
 CONF_PIPELINE_ID: Final = "pipeline_id"
 CONF_REPLY_MODE: Final = "reply_mode"
 CONF_ALLOW_GROUPS: Final = "allow_groups"
+CONF_TODO_ENTITY: Final = "todo_entity"
 CONF_KEEP_AUDIO: Final = "keep_audio"
 CONF_ALLOW_CLOUD_FOR_MAIL: Final = "allow_cloud_for_mail"
 CONF_BRIEF_TIME: Final = "brief_time"
@@ -44,6 +45,7 @@ DEFAULT_OPTIONS: Final[dict[str, object]] = {
     CONF_PIPELINE_ID: None,
     CONF_REPLY_MODE: DEFAULT_REPLY_MODE,
     CONF_ALLOW_GROUPS: DEFAULT_ALLOW_GROUPS,
+    CONF_TODO_ENTITY: None,
 }
 
 # Services
@@ -64,6 +66,8 @@ STORAGE_CHATS: Final = f"{DOMAIN}.chats"
 EVENT_TEXT: Final = "telegram_text"
 EVENT_COMMAND: Final = "telegram_command"
 EVENT_ATTACHMENT: Final = "telegram_attachment"
+EVENT_CALLBACK: Final = "telegram_callback"
+EVENT_SENT: Final = "telegram_sent"
 
 # Limits
 CONVERSATION_TIMEOUT: Final = 60

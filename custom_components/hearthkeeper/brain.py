@@ -17,6 +17,7 @@ from .const import (
     REPLY_MODE_TEXT,
     REPLY_MODE_VOICE,
 )
+from .shop import ShopSkill
 from .store import ChatContext, ChatStore
 from .transport import IncomingMessage, MessageKind, Transport, strip_bot_mention
 
@@ -30,6 +31,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "Команды:\n"
             "/new — начать новый разговор\n"
             "/voice on|off|both — голосовые ответы\n"
+            "/shop — список покупок\n"
             "/brief — сводка дня\n"
             "/model — сменить агента\n"
             "/help — эта справка"
@@ -41,7 +43,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "voice_unknown": (
             "Не понял режим. Используйте /voice on, /voice off или /voice both."
         ),
-        "unknown_command": "Не знаю такую команду. /help — список команд.",
         "brief_soon": "Брифинг появится в следующем обновлении.",
         "model_soon": "Смена агента появится в следующем обновлении.",
         "attachment_soon": (
@@ -59,6 +60,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "Commands:\n"
             "/new — start a new conversation\n"
             "/voice on|off|both — voice replies\n"
+            "/shop — shopping list\n"
             "/brief — daily briefing\n"
             "/model — switch the agent\n"
             "/help — this help"
@@ -66,7 +68,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "reset_done": "Conversation context cleared.",
         "voice_set": "Reply mode: {mode}. Voice replies arrive in the next update.",
         "voice_unknown": "Unknown mode. Use /voice on, /voice off or /voice both.",
-        "unknown_command": "Unknown command. /help lists the available commands.",
         "brief_soon": "The briefing is coming in the next update.",
         "model_soon": "Switching the agent is coming in the next update.",
         "attachment_soon": "Voice and files are not supported yet — please send text.",
@@ -114,6 +115,7 @@ class Brain:
         *,
         pipeline: PipelineSettings | None,
         reply_mode: str,
+        todo_entity: str | None = None,
     ) -> None:
         """Initialise the brain with entry-level defaults."""
         self.hass = hass
@@ -121,10 +123,15 @@ class Brain:
         self._chats = chats
         self._pipeline = pipeline
         self._default_reply_mode = reply_mode
+        self._shop = ShopSkill(hass, transport, todo_entity)
 
     async def async_handle(self, message: IncomingMessage) -> None:
         """Process one accepted message."""
         chat = self._chats.mark_seen(message.chat_id)
+
+        if message.kind is MessageKind.CALLBACK:
+            await self._shop.async_handle_callback(message, self._language(chat))
+            return
 
         if message.kind is MessageKind.COMMAND:
             await self._async_handle_command(message, chat)
@@ -211,12 +218,16 @@ class Brain:
             await self._reply(message, self._text(chat, "reset_done"))
         elif command == "voice":
             await self._async_voice_command(message, chat)
+        elif command == "shop":
+            await self._shop.async_handle_command(message, self._language(chat))
         elif command == "brief":
             await self._reply(message, self._text(chat, "brief_soon"))
         elif command == "model":
             await self._reply(message, self._text(chat, "model_soon"))
         else:
-            await self._reply(message, self._text(chat, "unknown_command"))
+            # Another automation may own this command (for example /shop or
+            # /video). Staying quiet keeps both working in the same chat.
+            _LOGGER.debug("Ignoring command %s: not ours", command)
 
     async def _async_voice_command(
         self, message: IncomingMessage, chat: ChatContext

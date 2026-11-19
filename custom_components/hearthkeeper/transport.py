@@ -24,6 +24,7 @@ from homeassistant.exceptions import HomeAssistantError
 from .const import (
     DEDUP_CACHE_SIZE,
     EVENT_ATTACHMENT,
+    EVENT_CALLBACK,
     EVENT_COMMAND,
     EVENT_TEXT,
     SENT_ID_CACHE_SIZE,
@@ -38,7 +39,7 @@ _LOGGER = logging.getLogger(__name__)
 _DATA_BOT = "bot"
 _DATA_CONFIG_ENTRY_ID = "config_entry_id"
 _DATA_CHAT_ID = "chat_id"
-_DATA_MESSAGE_ID = "id"
+_DATA_ID = "id"
 _DATA_TEXT = "text"
 _DATA_USER_ID = "user_id"
 _DATA_THREAD_ID = "message_thread_id"
@@ -50,9 +51,17 @@ _DATA_FILE_MIME = "file_mime_type"
 _DATA_FILE_SIZE = "file_size"
 _DATA_FILE_NAME = "file_name"
 _DATA_BOT_USERNAME = "username"
+_DATA_CALLBACK_DATA = "data"
+_DATA_CALLBACK_MESSAGE = "message"
+_CALLBACK_MESSAGE_ID = "message_id"
 
 _SERVICE_SEND_MESSAGE = "send_message"
 _SERVICE_SEND_CHAT_ACTION = "send_chat_action"
+_SERVICE_EDIT_MESSAGE = "edit_message"
+_SERVICE_ANSWER_CALLBACK = "answer_callback_query"
+
+# Telegram rejects inline keyboard payloads longer than 64 bytes.
+CALLBACK_DATA_LIMIT = 64
 
 
 class MessageKind(StrEnum):
@@ -61,6 +70,7 @@ class MessageKind(StrEnum):
     TEXT = "text"
     COMMAND = "command"
     ATTACHMENT = "attachment"
+    CALLBACK = "callback"
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +97,8 @@ class IncomingMessage:
     command: str | None = None
     args: tuple[str, ...] = ()
     attachment: Attachment | None = None
+    callback_id: str | None = None
+    callback_data: str | None = None
 
 
 def parse_event(kind: MessageKind, data: Mapping[str, Any]) -> IncomingMessage | None:
@@ -95,7 +107,7 @@ def parse_event(kind: MessageKind, data: Mapping[str, Any]) -> IncomingMessage |
     if not isinstance(chat_id, int):
         return None
 
-    message_id = data.get(_DATA_MESSAGE_ID)
+    message_id = data.get(_DATA_ID)
     user_id = data.get(_DATA_USER_ID)
     thread_id = data.get(_DATA_THREAD_ID)
     reply_to = data.get(_DATA_REPLY_TO)
@@ -106,6 +118,28 @@ def parse_event(kind: MessageKind, data: Mapping[str, Any]) -> IncomingMessage |
         "thread_id": thread_id if isinstance(thread_id, int) else None,
         "reply_to_id": reply_to if isinstance(reply_to, int) else None,
     }
+
+    if kind is MessageKind.CALLBACK:
+        callback_data = data.get(_DATA_CALLBACK_DATA)
+        if not isinstance(callback_data, str) or not callback_data:
+            return None
+        callback_id = data.get(_DATA_ID)
+        raw_message = data.get(_DATA_CALLBACK_MESSAGE)
+        # For callbacks ``id`` is the callback query id, not the message id.
+        common["message_id"] = None
+        if isinstance(raw_message, dict):
+            raw_message_id = raw_message.get(_CALLBACK_MESSAGE_ID)
+            if isinstance(raw_message_id, int):
+                common["message_id"] = raw_message_id
+        return IncomingMessage(
+            kind=kind,
+            text=callback_data,
+            callback_id=(
+                str(callback_id) if isinstance(callback_id, (str, int)) else None
+            ),
+            callback_data=callback_data,
+            **common,
+        )
 
     if kind is MessageKind.TEXT:
         text = data.get(_DATA_TEXT)
@@ -199,7 +233,7 @@ class Transport:
         self._unsubs: list[Callable[[], None]] = []
         self._tasks: set[asyncio.Task[None]] = set()
         self._locks: dict[int, asyncio.Lock] = {}
-        self._seen: OrderedDict[tuple[int, int], None] = OrderedDict()
+        self._seen: OrderedDict[tuple[int, object], None] = OrderedDict()
         self._sent_ids: dict[int, deque[int]] = {}
 
     @property
@@ -221,6 +255,7 @@ class Transport:
             (EVENT_TEXT, MessageKind.TEXT),
             (EVENT_COMMAND, MessageKind.COMMAND),
             (EVENT_ATTACHMENT, MessageKind.ATTACHMENT),
+            (EVENT_CALLBACK, MessageKind.CALLBACK),
         ):
             self._unsubs.append(
                 self.hass.bus.async_listen(event, self._make_listener(kind))
@@ -303,6 +338,11 @@ class Transport:
             _LOGGER.debug("Ignoring group message: group chats are disabled")
             return False
 
+        if message.kind is MessageKind.CALLBACK:
+            # Buttons are only ever attached to our own messages, so a tap in
+            # an allowed group is always meant for us.
+            return True
+
         if message.kind is MessageKind.COMMAND:
             return True
 
@@ -323,11 +363,17 @@ class Transport:
         )
 
     def _is_duplicate(self, message: IncomingMessage) -> bool:
-        """Drop repeated (chat_id, message_id) pairs."""
-        if message.message_id is None:
+        """Drop repeated Telegram updates."""
+        if message.message_id is None and message.callback_id is None:
             return False
 
-        key = (message.chat_id, message.message_id)
+        # A callback has no message id of its own, so the query id is the key.
+        identifier: object = (
+            message.message_id
+            if message.message_id is not None
+            else f"cb:{message.callback_id}"
+        )
+        key = (message.chat_id, identifier)
         if key in self._seen:
             self._seen.move_to_end(key)
             _LOGGER.debug("Ignoring duplicate message in chat %s", message.chat_id)
@@ -345,12 +391,22 @@ class Transport:
         *,
         thread_id: int | None = None,
         reply_to: int | None = None,
+        keyboard: list[list[list[str]]] | None = None,
     ) -> int | None:
-        """Send text to a chat, splitting long replies."""
+        """Send text to a chat, splitting long replies.
+
+        ``keyboard`` is the ``inline_keyboard`` payload of telegram_bot and is
+        attached to the last chunk.
+        """
+        chunks = split_message(text)
         last_message_id: int | None = None
-        for chunk in split_message(text):
+        for index, chunk in enumerate(chunks):
             last_message_id = await self._async_send_chunk(
-                chat_id, chunk, thread_id=thread_id, reply_to=reply_to
+                chat_id,
+                chunk,
+                thread_id=thread_id,
+                reply_to=reply_to,
+                keyboard=(keyboard if keyboard and index == len(chunks) - 1 else None),
             )
             if last_message_id is not None:
                 self._remember_sent(chat_id, last_message_id)
@@ -363,6 +419,7 @@ class Transport:
         *,
         thread_id: int | None,
         reply_to: int | None,
+        keyboard: list[list[list[str]]] | None = None,
     ) -> int | None:
         """Send one message chunk."""
         data: dict[str, Any] = {
@@ -376,6 +433,8 @@ class Transport:
             data[_DATA_THREAD_ID] = thread_id
         if reply_to is not None:
             data[_DATA_REPLY_TO] = reply_to
+        if keyboard:
+            data["inline_keyboard"] = keyboard
 
         try:
             response = await self._async_call_send_message(data)
@@ -405,6 +464,57 @@ class Transport:
             blocking=True,
             return_response=True,
         )
+
+    async def async_edit_message(
+        self,
+        chat_id: int,
+        message_id: int,
+        text: str,
+        keyboard: list[list[list[str]]] | None = None,
+    ) -> bool:
+        """Edit a message we sent earlier."""
+        data: dict[str, Any] = {
+            _DATA_CONFIG_ENTRY_ID: self._telegram_entry_id,
+            _DATA_CHAT_ID: chat_id,
+            "message_id": message_id,
+            "message": text,
+            "parse_mode": "plain_text",
+        }
+        if keyboard:
+            data["inline_keyboard"] = keyboard
+        try:
+            await self.hass.services.async_call(
+                TELEGRAM_DOMAIN, _SERVICE_EDIT_MESSAGE, data, blocking=True
+            )
+        except HomeAssistantError as err:
+            _LOGGER.warning(
+                "Could not edit a Telegram message in chat %s (%s)",
+                chat_id,
+                type(err).__name__,
+            )
+            return False
+        return True
+
+    async def async_answer_callback(
+        self, callback_id: str | None, text: str = ""
+    ) -> None:
+        """Stop the button spinner in Telegram."""
+        if callback_id is None:
+            return
+        try:
+            query_id = int(callback_id)
+        except (TypeError, ValueError):
+            _LOGGER.debug("Ignoring a callback query with a non-numeric id")
+            return
+        try:
+            await self.hass.services.async_call(
+                TELEGRAM_DOMAIN,
+                _SERVICE_ANSWER_CALLBACK,
+                {"callback_query_id": query_id, "message": text},
+                blocking=True,
+            )
+        except HomeAssistantError as err:
+            _LOGGER.debug("Could not answer a callback query (%s)", type(err).__name__)
 
     async def async_send_chat_action(
         self, chat_id: int, action: str = "typing", *, thread_id: int | None = None

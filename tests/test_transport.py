@@ -75,12 +75,32 @@ def test_parse_attachment_event() -> None:
     assert message.text == "caption"
 
 
+def test_parse_callback_event() -> None:
+    """A callback keeps the query id and the id of the message with buttons."""
+    message = parse_event(
+        MessageKind.CALLBACK,
+        {
+            "bot": BOT,
+            "chat_id": 42,
+            "id": 999,
+            "data": "shop_done:uid-a",
+            "message": {"message_id": 7},
+        },
+    )
+
+    assert message is not None
+    assert message.callback_id == "999"
+    assert message.callback_data == "shop_done:uid-a"
+    assert message.message_id == 7
+
+
 def test_parse_rejects_incomplete_events() -> None:
     """Events without a chat id or required fields are dropped."""
     assert parse_event(MessageKind.TEXT, {"text": "hi"}) is None
     assert parse_event(MessageKind.TEXT, _event()) is None
     assert parse_event(MessageKind.COMMAND, _event()) is None
     assert parse_event(MessageKind.ATTACHMENT, _event()) is None
+    assert parse_event(MessageKind.CALLBACK, _event()) is None
 
 
 def test_split_message_keeps_words() -> None:

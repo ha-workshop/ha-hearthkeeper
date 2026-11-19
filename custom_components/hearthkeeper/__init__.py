@@ -24,6 +24,7 @@ from .const import (
     CONF_PIPELINE_ID,
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
+    CONF_TODO_ENTITY,
     DEFAULT_ALLOW_GROUPS,
     DEFAULT_OPTIONS,
     DEFAULT_REPLY_MODE,
@@ -108,6 +109,7 @@ async def async_setup_entry(
         chats,
         pipeline=pipeline,
         reply_mode=_str_or_none(options.get(CONF_REPLY_MODE)) or DEFAULT_REPLY_MODE,
+        todo_entity=_str_or_none(options.get(CONF_TODO_ENTITY)),
     )
     transport.set_handler(brain.async_handle)
 

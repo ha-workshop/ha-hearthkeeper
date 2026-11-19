@@ -42,6 +42,7 @@ replies through `telegram_bot` services.
 | `/voice on` | Voice replies (arrives in M2) |
 | `/voice off` | Text replies |
 | `/voice both` | Text and voice |
+| `/shop` | Shopping list from a `todo` entity (tap to tick off) |
 | `/brief` | Daily briefing (M3) |
 | `/model` | Switch the agent (M3) |
 

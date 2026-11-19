@@ -15,6 +15,8 @@ from homeassistant.config_entries import (
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     BooleanSelector,
+    EntitySelector,
+    EntitySelectorConfig,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -28,6 +30,7 @@ from .const import (
     CONF_PIPELINE_ID,
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
+    CONF_TODO_ENTITY,
     DEFAULT_OPTIONS,
     DOMAIN,
     NAME,
@@ -158,6 +161,10 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                         CONF_ALLOW_GROUPS, DEFAULT_OPTIONS[CONF_ALLOW_GROUPS]
                     ),
                 ): BooleanSelector(),
+                vol.Optional(
+                    CONF_TODO_ENTITY,
+                    description={"suggested_value": options.get(CONF_TODO_ENTITY)},
+                ): EntitySelector(EntitySelectorConfig(domain="todo")),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
