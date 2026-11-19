@@ -19,6 +19,7 @@ from custom_components.hearthkeeper.skills import (
     INTENT_BRIEF,
     INTENT_CALENDAR,
     INTENT_HOME,
+    INTENT_MAIL,
     SENTENCES_FILE,
     SkillRequest,
     SkillRouter,
@@ -42,6 +43,9 @@ from custom_components.hearthkeeper.skills import (
         ("что у меня завтра", INTENT_CALENDAR, DAY_TOMORROW),
         ("Что дома?", INTENT_HOME, ""),
         ("статус дома", INTENT_HOME, ""),
+        ("что в почте", INTENT_MAIL, ""),
+        ("что нового в почте", INTENT_MAIL, ""),
+        ("проверь почту", INTENT_MAIL, ""),
     ],
 )
 def test_match_russian_phrases(text: str, intent: str, day: str) -> None:
@@ -61,6 +65,8 @@ def test_match_russian_phrases(text: str, intent: str, day: str) -> None:
         ("tomorrow's agenda", INTENT_CALENDAR, DAY_TOMORROW),
         ("what is on at home", INTENT_HOME, ""),
         ("status of the home", INTENT_HOME, ""),
+        ("what is in my mail", INTENT_MAIL, ""),
+        ("check my email", INTENT_MAIL, ""),
     ],
 )
 def test_match_english_phrases(text: str, intent: str, day: str) -> None:
@@ -165,6 +171,15 @@ async def test_home_skill_disabled(hass: HomeAssistant) -> None:
     assert "отключена" in answer
 
 
+async def test_mail_skill_without_sources(hass: HomeAssistant) -> None:
+    """Without mail sensors the skill explains what to configure."""
+    router = SkillRouter(hass, BriefingSources())
+
+    answer = await router.async_run(SkillRequest(INTENT_MAIL), "ru")
+
+    assert "Сенсоры почты не выбраны" in answer
+
+
 async def test_brief_skill(hass: HomeAssistant) -> None:
     """The brief skill returns the full briefing."""
     router = SkillRouter(hass, BriefingSources(home=False))
@@ -219,6 +234,7 @@ async def test_sentences_are_installed_and_removed(hass: HomeAssistant) -> None:
         assert INTENT_BRIEF in payload["intents"]
         assert INTENT_CALENDAR in payload["intents"]
         assert INTENT_HOME in payload["intents"]
+        assert INTENT_MAIL in payload["intents"]
 
     await async_remove_sentences(hass)
 

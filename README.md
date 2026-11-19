@@ -60,6 +60,7 @@ replies through `telegram_bot` services.
 | `/voice both` | Text and voice |
 | `/shop` | Shopping list from a `todo` entity (tap to tick off, `/shop del` asks first) |
 | `/brief` | Daily briefing: weather, calendar, house, shopping list, mail |
+| `/mail` | Recent mail: unread counters and senders/subjects |
 | `/model` | Switch the conversation agent for this chat (buttons or `/model <name>`) |
 
 ## Skills
@@ -86,7 +87,9 @@ Open **Configure** and pick the sources you already use in Home Assistant:
 - **Weather entity** — a `weather.*` entity;
 - **Shopping list** — the same `todo.*` list as `/shop`;
 - **Mail sensors** — `sensor.*` entities created by the IMAP integration with
-  unread counters;
+  unread counters. Recent senders and subjects come from `imap_content`
+  events and stay in memory only. Enable **AI summary for mail** to ask your
+  preferred AI Task for a 3–5 line digest; it is off by default;
 - **Home status** — lights on, open doors and windows, active climate.
 
 Set **Briefing time** (default 08:00) and turn on **Morning briefing**. The
@@ -116,7 +119,8 @@ without it the chat's own reply mode is used.
   language, timestamps. Message texts and mail/calendar content never touch
   disk.
 - Nothing leaves the house except Telegram itself. Cloud agents are opt-in via
-  the agent you choose.
+  the agent you choose, and mail summaries are a separate opt-in
+  (**AI summary for mail**).
 - Source audio and mail content are only logged at `DEBUG`, and never with
   content.
 

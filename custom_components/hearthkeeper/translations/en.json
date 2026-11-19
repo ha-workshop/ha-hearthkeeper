@@ -32,6 +32,7 @@
           "brief_calendars": "Calendars",
           "brief_weather": "Weather entity",
           "brief_mail": "Mail sensors",
+          "allow_cloud_for_mail": "AI summary for mail",
           "brief_home": "Home status"
         },
         "data_description": {
@@ -45,6 +46,7 @@
           "brief_calendars": "Calendars shown under Today and Tomorrow. Leave empty to skip the section.",
           "brief_weather": "Weather entity shown in the briefing. Leave empty to skip the section.",
           "brief_mail": "IMAP sensors with unread counters. Leave empty to skip the mail section.",
+          "allow_cloud_for_mail": "Allow Hearthkeeper to send the senders and subjects of recent messages to your preferred AI Task for a 3–5 line summary. Off by default: mail never leaves the house.",
           "brief_home": "Show lights, open doors and windows, and active climate."
         }
       }

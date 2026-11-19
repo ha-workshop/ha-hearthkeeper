@@ -21,6 +21,7 @@ from .const import (
     REPLY_MODE_VOICE,
     VOICE_DOWNLOAD_LIMIT,
 )
+from .mail import Mailbox, async_mail_digest
 from .shop import ShopSkill
 from .skills import SkillRouter
 from .stats import RuntimeStats
@@ -48,6 +49,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/voice on|off|both — голосовые ответы\n"
             "/shop — список покупок\n"
             "/brief — сводка дня\n"
+            "/mail — что в почте\n"
             "/model — сменить агента\n"
             "/help — эта справка"
         ),
@@ -83,6 +85,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "Пока понимаю текст и голосовые сообщения — отправьте текст или голосовое."
         ),
         "echo": "Эхо: {text}",
+        "mail_not_configured": (
+            "Почта не настроена: выберите сенсоры IMAP в настройках Hearthkeeper."
+        ),
         "timeout": "Ассистент не ответил за минуту. Попробуйте ещё раз.",
         "failed": "Не получилось получить ответ. Попробуйте ещё раз.",
         "empty": "Ассистент вернул пустой ответ.",
@@ -96,6 +101,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/voice on|off|both — voice replies\n"
             "/shop — shopping list\n"
             "/brief — daily briefing\n"
+            "/mail — what is in the mail\n"
             "/model — switch the agent\n"
             "/help — this help"
         ),
@@ -128,6 +134,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "I understand text and voice messages so far — send text or a voice note."
         ),
         "echo": "Echo: {text}",
+        "mail_not_configured": (
+            "Mail is not configured: pick IMAP sensors in the Hearthkeeper options."
+        ),
         "timeout": "The assistant did not answer within a minute. Please try again.",
         "failed": "Could not get an answer. Please try again.",
         "empty": "The assistant returned an empty answer.",
@@ -162,6 +171,9 @@ class Brain:
         max_voice_seconds: int = DEFAULT_MAX_VOICE_SECONDS,
         briefing: BriefingSources | None = None,
         stats: RuntimeStats | None = None,
+        mailbox: Mailbox | None = None,
+        allow_cloud_for_mail: bool = False,
+        skills: SkillRouter | None = None,
     ) -> None:
         """Initialise the brain with entry-level defaults."""
         self.hass = hass
@@ -172,8 +184,12 @@ class Brain:
         self._max_voice_seconds = max_voice_seconds
         self._briefing = briefing or BriefingSources()
         self._stats = stats or RuntimeStats()
+        self._mailbox = mailbox
+        self._allow_cloud_for_mail = allow_cloud_for_mail
         self._shop = ShopSkill(hass, transport, todo_entity)
-        self._skills = SkillRouter(hass, self._briefing)
+        self._skills = skills or SkillRouter(
+            hass, self._briefing, mailbox, allow_cloud_for_mail
+        )
         # The callback data of an agent button is only an index; the list it
         # points at lives here so long entity ids never hit Telegram's limit.
         self._agent_choices: dict[int, tuple[str, ...]] = {}
@@ -499,7 +515,11 @@ class Brain:
         for target in targets:
             chat = self._chats.get(target)
             text = await async_build_briefing(
-                self.hass, self._briefing, self._language(chat)
+                self.hass,
+                self._briefing,
+                self._language(chat),
+                mailbox=self._mailbox,
+                allow_cloud_for_mail=self._allow_cloud_for_mail,
             )
             await self._async_deliver(chat, text, chat_id=target)
 
@@ -521,6 +541,8 @@ class Brain:
             await self._shop.async_handle_command(message, self._language(chat))
         elif command == "brief":
             await self._async_briefing_command(message, chat)
+        elif command == "mail":
+            await self._async_mail_command(message, chat)
         elif command == "model":
             await self._async_model_command(message, chat)
         else:
@@ -689,9 +711,29 @@ class Brain:
             message.chat_id, "typing", thread_id=message.thread_id
         )
         text = await async_build_briefing(
-            self.hass, self._briefing, self._language(chat)
+            self.hass,
+            self._briefing,
+            self._language(chat),
+            mailbox=self._mailbox,
+            allow_cloud_for_mail=self._allow_cloud_for_mail,
         )
         await self._reply(message, text)
+
+    async def _async_mail_command(
+        self, message: IncomingMessage, chat: ChatContext
+    ) -> None:
+        """Show the mail digest for this chat."""
+        await self._transport.async_send_chat_action(
+            message.chat_id, "typing", thread_id=message.thread_id
+        )
+        text = await async_mail_digest(
+            self.hass,
+            self._briefing,
+            self._language(chat),
+            mailbox=self._mailbox,
+            allow_cloud=self._allow_cloud_for_mail,
+        )
+        await self._reply(message, text or self._text(chat, "mail_not_configured"))
 
     async def _async_voice_command(
         self, message: IncomingMessage, chat: ChatContext

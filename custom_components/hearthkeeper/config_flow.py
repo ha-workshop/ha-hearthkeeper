@@ -30,6 +30,7 @@ from homeassistant.helpers.translation import async_get_translations
 
 from .assist import async_list_pipelines
 from .const import (
+    CONF_ALLOW_CLOUD_FOR_MAIL,
     CONF_ALLOW_GROUPS,
     CONF_BRIEF_CALENDARS,
     CONF_BRIEF_ENABLED,
@@ -225,6 +226,13 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                         domain="sensor", integration="imap", multiple=True
                     )
                 ),
+                vol.Optional(
+                    CONF_ALLOW_CLOUD_FOR_MAIL,
+                    default=options.get(
+                        CONF_ALLOW_CLOUD_FOR_MAIL,
+                        DEFAULT_OPTIONS[CONF_ALLOW_CLOUD_FOR_MAIL],
+                    ),
+                ): BooleanSelector(),
                 vol.Optional(
                     CONF_BRIEF_HOME,
                     default=options.get(

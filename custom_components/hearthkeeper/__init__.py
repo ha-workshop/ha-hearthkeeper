@@ -22,6 +22,7 @@ from .const import (
     ATTR_CHAT_ID,
     ATTR_MODE,
     ATTR_TEXT,
+    CONF_ALLOW_CLOUD_FOR_MAIL,
     CONF_ALLOW_GROUPS,
     CONF_BRIEF_CALENDARS,
     CONF_BRIEF_ENABLED,
@@ -34,6 +35,7 @@ from .const import (
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
     CONF_TODO_ENTITY,
+    DEFAULT_ALLOW_CLOUD_FOR_MAIL,
     DEFAULT_ALLOW_GROUPS,
     DEFAULT_BRIEF_ENABLED,
     DEFAULT_BRIEF_HOME,
@@ -51,6 +53,7 @@ from .const import (
     TELEGRAM_DOMAIN,
     TELEGRAM_SUBENTRY_ALLOWED_CHATS,
 )
+from .mail import Mailbox
 from .skills import (
     SkillRouter,
     async_install_sentences,
@@ -140,6 +143,15 @@ async def async_setup_entry(
         home=bool(options.get(CONF_BRIEF_HOME, DEFAULT_BRIEF_HOME)),
     )
     stats = RuntimeStats()
+    mailbox = Mailbox(hass)
+    mailbox.async_start()
+    entry.async_on_unload(mailbox.async_stop)
+    allow_cloud_for_mail = bool(
+        options.get(CONF_ALLOW_CLOUD_FOR_MAIL, DEFAULT_ALLOW_CLOUD_FOR_MAIL)
+    )
+    skill_router = SkillRouter(
+        hass, briefing, mailbox, allow_cloud_for_mail=allow_cloud_for_mail
+    )
     brain = Brain(
         hass,
         transport,
@@ -152,6 +164,9 @@ async def async_setup_entry(
         ),
         briefing=briefing,
         stats=stats,
+        mailbox=mailbox,
+        allow_cloud_for_mail=allow_cloud_for_mail,
+        skills=skill_router,
     )
     transport.set_handler(brain.async_handle)
 

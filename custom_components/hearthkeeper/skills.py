@@ -33,13 +33,15 @@ from .brief import (
     home_status_text,
 )
 from .const import DEFAULT_LANGUAGE
+from .mail import Mailbox, async_mail_digest
 
 _LOGGER = logging.getLogger(__name__)
 
 INTENT_BRIEF: Final = "HearthkeeperBrief"
 INTENT_CALENDAR: Final = "HearthkeeperCalendar"
 INTENT_HOME: Final = "HearthkeeperHome"
-INTENT_TYPES: Final = (INTENT_BRIEF, INTENT_CALENDAR, INTENT_HOME)
+INTENT_MAIL: Final = "HearthkeeperMail"
+INTENT_TYPES: Final = (INTENT_BRIEF, INTENT_CALENDAR, INTENT_HOME, INTENT_MAIL)
 
 SENTENCES_DIR: Final = "custom_sentences"
 SENTENCES_FILE: Final = "hearthkeeper.yaml"
@@ -52,10 +54,12 @@ _SKILL_TEXTS: dict[str, dict[str, str]] = {
     "ru": {
         "calendar_missing": "Календари не настроены в Hearthkeeper.",
         "home_disabled": "Сводка по дому отключена в настройках Hearthkeeper.",
+        "mail_missing": "Сенсоры почты не выбраны в настройках Hearthkeeper.",
     },
     "en": {
         "calendar_missing": "No calendars are configured in Hearthkeeper.",
         "home_disabled": "The home summary is disabled in the Hearthkeeper options.",
+        "mail_missing": "No mail sensors are selected in the Hearthkeeper options.",
     },
 }
 
@@ -110,6 +114,19 @@ _PATTERNS: dict[str, tuple[tuple[str, str, re.Pattern[str]], ...]] = {
                 r")"
             ),
         ),
+        (
+            INTENT_MAIL,
+            "",
+            re.compile(
+                r"(?:"
+                r"(?:что|как)(?: нового| важного)?(?: в| на)? почте"
+                r"|что (?:пришло|нового пришло)(?: на)? почт[уе]"
+                r"|проверь почту"
+                r"|почтовый дайджест"
+                r"|письма"
+                r")"
+            ),
+        ),
     ),
     "en": (
         (
@@ -158,6 +175,20 @@ _PATTERNS: dict[str, tuple[tuple[str, str, re.Pattern[str]], ...]] = {
                 r")"
             ),
         ),
+        (
+            INTENT_MAIL,
+            "",
+            re.compile(
+                r"(?:"
+                r"what(?:s| is)? (?:new |important )?(?:in|on) (?:my |the )?mail"
+                r"|what(?:s| is)? in my (?:inbox|email)"
+                r"|check (?:my |the )?(?:mail|email|inbox)"
+                r"|mail digest"
+                r"|any (?:new|important) (?:mail|email)"
+                r"|my (?:mail|email)"
+                r")"
+            ),
+        ),
     ),
 }
 
@@ -202,6 +233,17 @@ SENTENCES: dict[str, dict[str, list[dict[str, Any]]]] = {
                 ]
             }
         ],
+        INTENT_MAIL: [
+            {
+                "sentences": [
+                    "что в почте",
+                    "что нового в почте",
+                    "что важного в почте",
+                    "проверь почту",
+                    "почтовый дайджест",
+                ]
+            }
+        ],
     },
     "en": {
         INTENT_BRIEF: [
@@ -240,6 +282,17 @@ SENTENCES: dict[str, dict[str, list[dict[str, Any]]]] = {
                 ]
             }
         ],
+        INTENT_MAIL: [
+            {
+                "sentences": [
+                    "what is in my mail",
+                    "what is new in my mail",
+                    "what is important in my mail",
+                    "check my mail",
+                    "mail digest",
+                ]
+            }
+        ],
     },
 }
 
@@ -263,9 +316,17 @@ def normalize(text: str) -> str:
 class SkillRouter:
     """Match short phrases and run the matching skill."""
 
-    def __init__(self, hass: HomeAssistant, sources: BriefingSources) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        sources: BriefingSources,
+        mailbox: Mailbox | None = None,
+        allow_cloud_for_mail: bool = False,
+    ) -> None:
         self.hass = hass
         self.sources = sources
+        self._mailbox = mailbox
+        self._allow_cloud_for_mail = allow_cloud_for_mail
 
     @staticmethod
     def match(text: str, language: str) -> SkillRequest | None:
@@ -299,6 +360,16 @@ class SkillRouter:
         if request.intent == INTENT_HOME:
             answer = home_status_text(self.hass, self.sources, language)
             return answer or texts["home_disabled"]
+
+        if request.intent == INTENT_MAIL:
+            answer = await async_mail_digest(
+                self.hass,
+                self.sources,
+                language,
+                mailbox=self._mailbox,
+                allow_cloud=self._allow_cloud_for_mail,
+            )
+            return answer or texts["mail_missing"]
 
         raise ValueError(f"Unknown skill: {request.intent}")
 

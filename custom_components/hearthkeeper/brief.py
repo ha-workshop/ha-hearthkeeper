@@ -17,6 +17,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .const import DEFAULT_BRIEF_TIME, DEFAULT_LANGUAGE
+from .mail import Mailbox, async_mail_digest
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -195,6 +196,9 @@ async def async_build_briefing(
     hass: HomeAssistant,
     sources: BriefingSources,
     language: str,
+    *,
+    mailbox: Mailbox | None = None,
+    allow_cloud_for_mail: bool = False,
 ) -> str:
     """Build the briefing text for one chat."""
     texts = _TEXTS.get(language, _TEXTS[DEFAULT_LANGUAGE])
@@ -206,7 +210,13 @@ async def async_build_briefing(
         await _async_calendar(hass, sources, texts, now),
         _home_status(hass, sources, texts),
         await _async_todo(hass, sources, texts),
-        _mail_status(hass, sources, texts),
+        await async_mail_digest(
+            hass,
+            sources,
+            language,
+            mailbox=mailbox,
+            allow_cloud=allow_cloud_for_mail,
+        ),
     ):
         if block:
             blocks.append(block)
@@ -490,29 +500,6 @@ async def _async_todo(
     if len(items) > MAX_TODO_ITEMS:
         lines.append(texts["more"].format(count=len(items) - MAX_TODO_ITEMS))
     return "\n".join(lines)
-
-
-def _mail_status(
-    hass: HomeAssistant, sources: BriefingSources, texts: dict[str, Any]
-) -> str | None:
-    """Read unread counters from the mail sensors."""
-    if not sources.mail:
-        return None
-
-    lines: list[str] = []
-    for entity_id in sources.mail:
-        state = hass.states.get(entity_id)
-        if state is None:
-            continue
-        count = _number(state.state)
-        if count is None:
-            continue
-        if count > 0:
-            lines.append(f"• {_name(state)}: {count}")
-
-    if not lines:
-        return f"{texts['mail']}: {texts['no_mail']}"
-    return "\n".join([texts["mail"], *lines])
 
 
 def _join_limited(items: list[str], limit: int, texts: dict[str, Any]) -> str:

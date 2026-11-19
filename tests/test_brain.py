@@ -454,7 +454,9 @@ async def test_brief_command_builds_the_briefing(
 ) -> None:
     """``/brief`` answers with the generated summary."""
 
-    async def _brief(hass_: HomeAssistant, sources: Any, language: str) -> str:
+    async def _brief(
+        hass_: HomeAssistant, sources: Any, language: str, **kwargs: Any
+    ) -> str:
         assert language == "ru"
         return "Сводка дня"
 
@@ -470,12 +472,59 @@ async def test_brief_command_builds_the_briefing(
     assert transport.sent == [(42, "Сводка дня")]
 
 
+async def test_mail_command_shows_the_digest(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``/mail`` answers with the mail digest."""
+
+    async def _digest(
+        hass_: HomeAssistant, sources: Any, language: str, **kwargs: Any
+    ) -> str:
+        assert language == "ru"
+        return "✉️ Почта: 2"
+
+    monkeypatch.setattr(brain_module, "async_mail_digest", _digest)
+
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(
+        _message("/mail", kind=MessageKind.COMMAND, command="/mail", args=())
+    )
+
+    assert transport.sent == [(42, "✉️ Почта: 2")]
+
+
+async def test_mail_command_without_sensors(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing mail setup is explained instead of ignored."""
+
+    async def _digest(
+        hass_: HomeAssistant, sources: Any, language: str, **kwargs: Any
+    ) -> None:
+        return None
+
+    monkeypatch.setattr(brain_module, "async_mail_digest", _digest)
+
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(
+        _message("/mail", kind=MessageKind.COMMAND, command="/mail", args=())
+    )
+
+    assert transport.sent[0][1].startswith("Почта не настроена")
+
+
 async def test_scheduled_briefing_skips_groups(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The daily briefing goes to private chats only."""
 
-    async def _brief(hass_: HomeAssistant, sources: Any, language: str) -> str:
+    async def _brief(
+        hass_: HomeAssistant, sources: Any, language: str, **kwargs: Any
+    ) -> str:
         return "Сводка дня"
 
     monkeypatch.setattr(brain_module, "async_build_briefing", _brief)
