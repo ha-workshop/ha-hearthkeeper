@@ -33,13 +33,17 @@ from .const import (
     CONF_ALLOW_CLOUD_FOR_MAIL,
     CONF_ALLOW_GROUPS,
     CONF_BRIEF_CALENDARS,
+    CONF_BRIEF_CHATS,
     CONF_BRIEF_ENABLED,
     CONF_BRIEF_HOME,
     CONF_BRIEF_MAIL,
     CONF_BRIEF_TIME,
     CONF_BRIEF_WEATHER,
+    CONF_KEEP_AUDIO,
     CONF_MAX_VOICE_SECONDS,
     CONF_PIPELINE_ID,
+    CONF_QUIET_END,
+    CONF_QUIET_START,
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
     CONF_TODO_ENTITY,
@@ -193,6 +197,12 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                     )
                 ),
                 vol.Optional(
+                    CONF_KEEP_AUDIO,
+                    default=options.get(
+                        CONF_KEEP_AUDIO, DEFAULT_OPTIONS[CONF_KEEP_AUDIO]
+                    ),
+                ): BooleanSelector(),
+                vol.Optional(
                     CONF_BRIEF_ENABLED,
                     default=options.get(
                         CONF_BRIEF_ENABLED, DEFAULT_OPTIONS[CONF_BRIEF_ENABLED]
@@ -239,9 +249,53 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                         CONF_BRIEF_HOME, DEFAULT_OPTIONS[CONF_BRIEF_HOME]
                     ),
                 ): BooleanSelector(),
+                vol.Optional(
+                    CONF_QUIET_START,
+                    default=options.get(
+                        CONF_QUIET_START,
+                        DEFAULT_OPTIONS.get(CONF_QUIET_START, "23:00"),
+                    ),
+                ): TimeSelector(),
+                vol.Optional(
+                    CONF_QUIET_END,
+                    default=options.get(
+                        CONF_QUIET_END,
+                        DEFAULT_OPTIONS.get(CONF_QUIET_END, "07:00"),
+                    ),
+                ): TimeSelector(),
+                vol.Optional(
+                    CONF_BRIEF_CHATS,
+                    description={
+                        "suggested_value": list(options.get(CONF_BRIEF_CHATS) or ())
+                    },
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=[
+                            {"value": str(cid), "label": str(cid)}
+                            for cid in sorted(self._known_private_chats())
+                        ],
+                        multiple=True,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        custom_value=True,
+                    )
+                ),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
+
+    def _known_private_chats(self) -> set[int]:
+        """Return private chat IDs the bot has seen (from store)."""
+        try:
+            from .store import ChatStore
+
+            store = ChatStore(self.hass)
+            return {
+                chat.chat_id
+                for chat in store.chats.values()
+                if chat.chat_id > 0
+            }
+        except Exception:
+            return set()
 
     async def _async_none_label(self) -> str:
         """Return the localised label for the "no pipeline" option."""

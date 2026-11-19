@@ -16,7 +16,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
-from .const import DEFAULT_BRIEF_TIME, DEFAULT_LANGUAGE
+from .const import (
+    DEFAULT_BRIEF_TIME,
+    DEFAULT_LANGUAGE,
+    DEFAULT_QUIET_END,
+    DEFAULT_QUIET_START,
+)
 from .mail import Mailbox, async_mail_digest
 
 _LOGGER = logging.getLogger(__name__)
@@ -190,6 +195,33 @@ def _default_brief_time() -> tuple[int, int]:
     """Return the default briefing time as a pair."""
     hour, _, minute = DEFAULT_BRIEF_TIME.partition(":")
     return int(hour), int(minute)
+
+
+def is_quiet_hours(
+    now: datetime | None = None,
+    quiet_start: str = DEFAULT_QUIET_START,
+    quiet_end: str = DEFAULT_QUIET_END,
+) -> bool:
+    """Return True when the current local time is inside the quiet interval.
+
+    Quiet hours span midnight (e.g. 23:00-07:00). Both values are HH:MM
+    strings. Returns False when either value is empty or malformed.
+    """
+    if not quiet_start or not quiet_end:
+        return False
+    current = now or dt_util.now()
+    try:
+        start_h, start_m = (int(x) for x in quiet_start.split(":", 1))
+        end_h, end_m = (int(x) for x in quiet_end.split(":", 1))
+    except (ValueError, TypeError):
+        return False
+    current_minutes = current.hour * 60 + current.minute
+    start_minutes = start_h * 60 + start_m
+    end_minutes = end_h * 60 + end_m
+    if start_minutes <= end_minutes:
+        return start_minutes <= current_minutes <= end_minutes
+    # Spans midnight
+    return current_minutes >= start_minutes or current_minutes <= end_minutes
 
 
 async def async_build_briefing(

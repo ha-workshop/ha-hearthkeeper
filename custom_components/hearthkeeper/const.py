@@ -32,6 +32,9 @@ CONF_BRIEF_CALENDARS: Final = "brief_calendars"
 CONF_BRIEF_WEATHER: Final = "brief_weather"
 CONF_BRIEF_MAIL: Final = "brief_mail"
 CONF_BRIEF_HOME: Final = "brief_home"
+CONF_BRIEF_CHATS: Final = "brief_chats"
+CONF_QUIET_START: Final = "quiet_start"
+CONF_QUIET_END: Final = "quiet_end"
 
 # Selector value that means "no pipeline, echo messages back".
 PIPELINE_NONE: Final = "none"
@@ -50,13 +53,17 @@ DEFAULT_MAX_VOICE_SECONDS: Final = 120
 DEFAULT_ALLOW_CLOUD_FOR_MAIL: Final = False
 DEFAULT_BRIEF_ENABLED: Final = False
 DEFAULT_BRIEF_TIME: Final = "08:00"
+DEFAULT_KEEP_AUDIO: Final = False
 DEFAULT_BRIEF_HOME: Final = True
+DEFAULT_QUIET_START: Final = "23:00"
+DEFAULT_QUIET_END: Final = "07:00"
 
 DEFAULT_OPTIONS: Final[dict[str, object]] = {
     CONF_PIPELINE_ID: None,
     CONF_REPLY_MODE: DEFAULT_REPLY_MODE,
     CONF_ALLOW_GROUPS: DEFAULT_ALLOW_GROUPS,
     CONF_TODO_ENTITY: None,
+    CONF_KEEP_AUDIO: DEFAULT_KEEP_AUDIO,
     CONF_MAX_VOICE_SECONDS: DEFAULT_MAX_VOICE_SECONDS,
     CONF_ALLOW_CLOUD_FOR_MAIL: DEFAULT_ALLOW_CLOUD_FOR_MAIL,
     CONF_BRIEF_ENABLED: DEFAULT_BRIEF_ENABLED,
@@ -65,6 +72,9 @@ DEFAULT_OPTIONS: Final[dict[str, object]] = {
     CONF_BRIEF_WEATHER: None,
     CONF_BRIEF_MAIL: (),
     CONF_BRIEF_HOME: DEFAULT_BRIEF_HOME,
+    CONF_BRIEF_CHATS: (),
+    CONF_QUIET_START: DEFAULT_QUIET_START,
+    CONF_QUIET_END: DEFAULT_QUIET_END,
 }
 
 # Services
@@ -80,6 +90,7 @@ ATTR_MODE: Final = "mode"
 # Storage
 STORAGE_VERSION: Final = 1
 STORAGE_CHATS: Final = f"{DOMAIN}.chats"
+STORAGE_DIR: Final = f"{DOMAIN}/downloads"
 
 # Bus events fired by the core telegram_bot integration
 EVENT_TEXT: Final = "telegram_text"

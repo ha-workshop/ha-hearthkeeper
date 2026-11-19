@@ -25,13 +25,17 @@ from .const import (
     CONF_ALLOW_CLOUD_FOR_MAIL,
     CONF_ALLOW_GROUPS,
     CONF_BRIEF_CALENDARS,
+    CONF_BRIEF_CHATS,
     CONF_BRIEF_ENABLED,
     CONF_BRIEF_HOME,
     CONF_BRIEF_MAIL,
     CONF_BRIEF_TIME,
     CONF_BRIEF_WEATHER,
+    CONF_KEEP_AUDIO,
     CONF_MAX_VOICE_SECONDS,
     CONF_PIPELINE_ID,
+    CONF_QUIET_END,
+    CONF_QUIET_START,
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
     CONF_TODO_ENTITY,
@@ -40,8 +44,11 @@ from .const import (
     DEFAULT_BRIEF_ENABLED,
     DEFAULT_BRIEF_HOME,
     DEFAULT_BRIEF_TIME,
+    DEFAULT_KEEP_AUDIO,
     DEFAULT_MAX_VOICE_SECONDS,
     DEFAULT_OPTIONS,
+    DEFAULT_QUIET_END,
+    DEFAULT_QUIET_START,
     DEFAULT_REPLY_MODE,
     DOMAIN,
     REPLY_MODE_BOTH,
@@ -82,6 +89,9 @@ class HearthkeeperRuntime:
     briefing: BriefingSources
     brief_enabled: bool
     brief_time: str
+    brief_chats: tuple[int, ...]
+    quiet_start: str
+    quiet_end: str
     stats: RuntimeStats
 
     def handles_chat(self, chat_id: int) -> bool:
@@ -166,6 +176,7 @@ async def async_setup_entry(
         stats=stats,
         mailbox=mailbox,
         allow_cloud_for_mail=allow_cloud_for_mail,
+        keep_audio=bool(options.get(CONF_KEEP_AUDIO, DEFAULT_KEEP_AUDIO)),
         skills=skill_router,
     )
     transport.set_handler(brain.async_handle)
@@ -181,6 +192,13 @@ async def async_setup_entry(
         briefing=briefing,
         brief_enabled=bool(options.get(CONF_BRIEF_ENABLED, DEFAULT_BRIEF_ENABLED)),
         brief_time=_str_or_none(options.get(CONF_BRIEF_TIME)) or DEFAULT_BRIEF_TIME,
+        brief_chats=tuple(
+            int(cid)
+            for cid in (options.get(CONF_BRIEF_CHATS) or ())
+            if str(cid).lstrip("-").isdigit()
+        ),
+        quiet_start=_str_or_none(options.get(CONF_QUIET_START)) or DEFAULT_QUIET_START,
+        quiet_end=_str_or_none(options.get(CONF_QUIET_END)) or DEFAULT_QUIET_END,
         stats=stats,
     )
     entry.runtime_data = runtime
@@ -272,10 +290,12 @@ def _async_schedule_briefing(
 
     hour, minute = parse_brief_time(runtime.brief_time)
 
+    chats = runtime.brief_chats
+
     @callback
     def _time_changed(now: object) -> None:
         hass.async_create_task(
-            runtime.brain.async_send_briefing(),
+            runtime.brain.async_send_briefing(brief_chats=chats),
             "hearthkeeper morning briefing",
         )
 

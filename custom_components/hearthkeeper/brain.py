@@ -13,7 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .assist import PipelineSettings, extract_speech
-from .brief import BriefingSources, async_build_briefing
+from .brief import BriefingSources, async_build_briefing, is_quiet_hours
 from .const import (
     CONVERSATION_TIMEOUT,
     DEFAULT_LANGUAGE,
@@ -41,7 +41,7 @@ from .voice import (
     async_discard_file,
     async_run_audio_pipeline,
     async_stage_voice_reply,
-    async_transcode_to_wav,
+    async_transcode_and_maybe_keep,
     audio_suffix,
     is_audio,
 )
@@ -202,6 +202,9 @@ class Brain:
         stats: RuntimeStats | None = None,
         mailbox: Mailbox | None = None,
         allow_cloud_for_mail: bool = False,
+        keep_audio: bool = False,
+        quiet_start: str = "",
+        quiet_end: str = "",
         skills: SkillRouter | None = None,
     ) -> None:
         """Initialise the brain with entry-level defaults."""
@@ -215,6 +218,9 @@ class Brain:
         self._stats = stats or RuntimeStats()
         self._mailbox = mailbox
         self._allow_cloud_for_mail = allow_cloud_for_mail
+        self._keep_audio = keep_audio
+        self._quiet_start = quiet_start
+        self._quiet_end = quiet_end
         self._shop = ShopSkill(hass, transport, todo_entity)
         self._skills = skills or SkillRouter(
             hass, self._briefing, mailbox, allow_cloud_for_mail
@@ -387,13 +393,16 @@ class Brain:
             await self._reply(message, self._text(chat, "failed"))
             return
 
+        removed = False
         try:
-            wav = await async_transcode_to_wav(
+            wav, removed = await async_transcode_and_maybe_keep(
                 self.hass,
                 Path(downloaded),
                 max_seconds=self._max_voice_seconds,
+                keep=self._keep_audio,
             )
         except VoiceTooLongError:
+            await async_discard_file(self.hass, Path(downloaded))
             await self._reply(
                 message,
                 self._text(chat, "voice_too_long").format(
@@ -402,7 +411,7 @@ class Brain:
             )
             return
         except HomeAssistantError as err:
-            # The error may name the file, never the audio content.
+            await async_discard_file(self.hass, Path(downloaded))
             self._stats.record_error(type(err).__name__)
             _LOGGER.error(
                 "Could not decode a voice message in chat %s (%s)",
@@ -411,7 +420,7 @@ class Brain:
             )
             await self._reply(message, self._text(chat, "failed"))
             return
-        finally:
+        if not removed:
             await async_discard_file(self.hass, Path(downloaded))
 
         try:
@@ -535,10 +544,18 @@ class Brain:
         chat = self._chats.get(chat_id)
         await self._async_deliver(chat, text, chat_id=chat_id, mode=mode)
 
-    async def async_send_briefing(self, chat_id: int | None = None) -> None:
+    async def async_send_briefing(
+        self, chat_id: int | None = None, *, brief_chats: tuple[int, ...] = ()
+    ) -> None:
         """Build and deliver the briefing to one chat or every private chat."""
         if chat_id is not None:
             targets = [chat_id]
+        elif brief_chats:
+            targets = [
+                cid
+                for cid in brief_chats
+                if cid in {k.chat_id for k in self._chats.chats.values()}
+            ]
         else:
             targets = [
                 known.chat_id
@@ -547,6 +564,12 @@ class Brain:
             ]
         if not targets:
             _LOGGER.debug("No private chat is known yet, skipping the briefing")
+            return
+
+        if is_quiet_hours(
+            quiet_start=self._quiet_start, quiet_end=self._quiet_end
+        ):
+            _LOGGER.debug("Quiet hours: skipping the scheduled briefing")
             return
 
         self._stats.briefings += 1
@@ -841,7 +864,12 @@ class Brain:
     async def _async_deliver_reminder(
         self, chat_id: int, thread_id: int | None, text: str
     ) -> None:
-        """Send a due reminder to its chat."""
+        """Send a due reminder to its chat, respecting quiet hours."""
+        if is_quiet_hours(
+            quiet_start=self._quiet_start, quiet_end=self._quiet_end
+        ):
+            _LOGGER.debug("Quiet hours: deferring the reminder delivery")
+            return
         await self._transport.async_send_text(chat_id, text, thread_id=thread_id)
 
     def async_stop(self) -> None:

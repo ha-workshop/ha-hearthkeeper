@@ -33,7 +33,10 @@
           "brief_weather": "Weather entity",
           "brief_mail": "Mail sensors",
           "allow_cloud_for_mail": "AI summary for mail",
-          "brief_home": "Home status"
+          "brief_home": "Home status",
+          "keep_audio": "Keep original audio",
+          "quiet_start": "Quiet hours start (23:00)",
+          "quiet_end": "Quiet hours start (07:00)"
         },
         "data_description": {
           "pipeline_id": "Assist pipeline from Settings > Voice assistants. It already holds the conversation agent, STT, TTS and language. Choose none to echo messages back.",
@@ -47,7 +50,10 @@
           "brief_weather": "Weather entity shown in the briefing. Leave empty to skip the section.",
           "brief_mail": "IMAP sensors with unread counters. Leave empty to skip the mail section.",
           "allow_cloud_for_mail": "Allow Hearthkeeper to send the senders and subjects of recent messages to your preferred AI Task for a 3–5 line summary. Off by default: mail never leaves the house.",
-          "brief_home": "Show lights, open doors and windows, and active climate."
+          "brief_home": "Show lights, open doors and windows, and active climate.",
+          "keep_audio": "Keep the original audio sent by the user after processing. Off by default: messages are deleted after transcription.",
+          "quiet_start": "Start of quiet hours (e.g. 23:00). During quiet hours the scheduled briefing and reminders are suppressed.",
+          "quiet_end": "End of quiet hours (e.g. 07:00)."
         }
       }
     }

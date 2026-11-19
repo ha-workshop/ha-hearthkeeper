@@ -461,13 +461,24 @@ class Transport:
 
     async def _async_call_send_message(self, data: dict[str, Any]) -> Any:
         """Call ``telegram_bot.send_message`` and return its response."""
-        return await self.hass.services.async_call(
-            TELEGRAM_DOMAIN,
-            _SERVICE_SEND_MESSAGE,
-            data,
-            blocking=True,
-            return_response=True,
-        )
+        try:
+            return await self.hass.services.async_call(
+                TELEGRAM_DOMAIN,
+                _SERVICE_SEND_MESSAGE,
+                data,
+                blocking=True,
+                return_response=True,
+            )
+        except HomeAssistantError:
+            # One retry on network or Telegram error
+            await asyncio.sleep(1)
+            return await self.hass.services.async_call(
+                TELEGRAM_DOMAIN,
+                _SERVICE_SEND_MESSAGE,
+                data,
+                blocking=True,
+                return_response=True,
+            )
 
     async def async_edit_message(
         self,

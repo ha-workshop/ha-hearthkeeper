@@ -263,17 +263,17 @@ async def test_voice_message_goes_through_pipeline(
     seen: dict[str, Any] = {}
 
     async def _transcode(
-        hass_: HomeAssistant, path: Path, *, max_seconds: int
-    ) -> bytes:
+        hass_: HomeAssistant, path: Path, *, max_seconds: int, keep: bool = False
+    ) -> tuple[bytes, bool]:
         seen["path"] = path
         seen["max_seconds"] = max_seconds
-        return b"RIFF"
+        return b"RIFF", False
 
     async def _pipeline(hass_: HomeAssistant, **kwargs: Any) -> PipelineReply:
         seen["pipeline"] = kwargs
         return PipelineReply(text="Свет включён", conversation_id="tg:42:voice")
 
-    monkeypatch.setattr(brain_module, "async_transcode_to_wav", _transcode)
+    monkeypatch.setattr(brain_module, "async_transcode_and_maybe_keep", _transcode)
     monkeypatch.setattr(brain_module, "async_run_audio_pipeline", _pipeline)
 
     transport = FakeTransport()
@@ -296,11 +296,11 @@ async def test_long_voice_message_is_refused(
     """A voice note over the limit gets a clear answer instead of silence."""
 
     async def _transcode(
-        hass_: HomeAssistant, path: Path, *, max_seconds: int
-    ) -> bytes:
+        hass_: HomeAssistant, path: Path, *, max_seconds: int, keep: bool = False
+    ) -> tuple[bytes, bool]:
         raise VoiceTooLongError("too long")
 
-    monkeypatch.setattr(brain_module, "async_transcode_to_wav", _transcode)
+    monkeypatch.setattr(brain_module, "async_transcode_and_maybe_keep", _transcode)
 
     transport = FakeTransport()
     brain = _brain(hass, transport)

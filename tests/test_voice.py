@@ -22,6 +22,7 @@ from custom_components.hearthkeeper.voice import (
     PipelineReply,
     VoiceTooLongError,
     async_run_audio_pipeline,
+    async_transcode_and_maybe_keep,
     async_transcode_to_wav,
     audio_suffix,
     is_audio,
@@ -210,3 +211,52 @@ async def test_audio_pipeline_requires_stt(
         await async_run_audio_pipeline(
             hass, pipeline=no_stt, conversation_id="tg:42", wav=b"", language="ru"
         )
+
+
+async def test_transcode_and_keep_moves_file(
+    hass: HomeAssistant, tmp_path: Path
+) -> None:
+    """When ``keep`` is True the source is moved to the saved directory."""
+    source = tmp_path / "test.wav"
+    fake = io.BytesIO()
+    with wave.open(fake, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b"\x00" * 320)
+    source.write_bytes(fake.getvalue())
+
+    wav, moved = await async_transcode_and_maybe_keep(
+        hass, source, max_seconds=60, keep=True
+    )
+
+    assert moved is True
+    assert len(wav) > 0
+    assert not source.exists()
+    saved = Path(
+        hass.config.path(".storage", "hearthkeeper/downloads/saved", source.name)
+    )
+    assert saved.exists()
+    saved.unlink(missing_ok=True)
+
+
+async def test_transcode_and_not_keep_does_not_move(
+    hass: HomeAssistant, tmp_path: Path
+) -> None:
+    """When keep is False the source stays and the caller must discard it."""
+    source = tmp_path / "test.opus"
+    fake = io.BytesIO()
+    with wave.open(fake, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b"\x00" * 320)
+    source.write_bytes(fake.getvalue())
+
+    wav, moved = await async_transcode_and_maybe_keep(
+        hass, source, max_seconds=60, keep=False
+    )
+
+    assert moved is False
+    assert len(wav) > 0
+    assert source.exists()

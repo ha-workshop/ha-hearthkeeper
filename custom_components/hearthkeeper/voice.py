@@ -23,7 +23,13 @@ from homeassistant.core import Context, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 
 from .assist import PipelineSettings, extract_speech
-from .const import MEDIA_TIMEOUT, TTS_TIMEOUT, VOICE_SAMPLE_RATE, VOICE_TIMEOUT
+from .const import (
+    MEDIA_TIMEOUT,
+    STORAGE_DIR,
+    TTS_TIMEOUT,
+    VOICE_SAMPLE_RATE,
+    VOICE_TIMEOUT,
+)
 from .transport import Attachment
 
 _LOGGER = logging.getLogger(__name__)
@@ -258,6 +264,27 @@ async def async_stage_voice_reply(
     return path
 
 
+async def async_transcode_and_maybe_keep(
+    hass: HomeAssistant,
+    source: Path,
+    *,
+    max_seconds: int,
+    keep: bool = False,
+) -> tuple[bytes, bool]:
+    """Transcode a downloaded voice file and move it to the keep directory.
+
+    Returns (wav_bytes, removed_or_moved). When ``keep`` is True the original
+    file is moved to ``.storage/hearthkeeper/downloads/saved/`` instead of
+    being deleted; the caller still needs to discard the WAV.
+    """
+    wav = await async_transcode_to_wav(hass, source, max_seconds=max_seconds)
+    if keep:
+        dest = _download_dir(hass, keep=True) / source.name
+        await hass.async_add_executor_job(_move, source, dest)
+        return wav, True
+    return wav, False
+
+
 async def async_discard_file(hass: HomeAssistant, path: Path) -> None:
     """Delete a staged file, ignoring a missing or locked path."""
     try:
@@ -267,15 +294,22 @@ async def async_discard_file(hass: HomeAssistant, path: Path) -> None:
 
 
 def _staging_dir(hass: HomeAssistant) -> Path:
-    """Return a writable directory inside the media allowlist.
+    """Return a writable directory for temporary audio files.
 
-    The media directory is allowlisted for ``telegram_bot`` by default and is
-    not served over HTTP, unlike ``www``. If no media directory is configured,
-    ``www`` is the fallback the core integration always allows.
+    TTS reply files are written here and deleted after sending. The directory
+    is inside ``.storage`` so it is never served over HTTP.
     """
-    media_dirs = list(hass.config.media_dirs.values())
-    base = Path(media_dirs[0]) if media_dirs else Path(hass.config.path("www"))
-    return base / "hearthkeeper"
+    return Path(hass.config.path(".storage", STORAGE_DIR, "tmp"))
+
+
+def _download_dir(hass: HomeAssistant, keep: bool = False) -> Path:
+    """Return the directory where incoming voice files are stored.
+
+    When ``keep`` is True the file is not deleted after processing.
+    """
+    return Path(
+        hass.config.path(".storage", STORAGE_DIR, "saved" if keep else "tmp")
+    )
 
 
 async def _async_encode_ogg(hass: HomeAssistant, audio: bytes) -> bytes:
@@ -399,6 +433,12 @@ def _unlink(path: Path) -> None:
     path.unlink(missing_ok=True)
 
 
+def _move(source: Path, dest: Path) -> None:
+    """Move source to dest, creating parent directories."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(source), str(dest))
+
+
 __all__ = [
     "PipelineReply",
     "VoiceNotConfiguredError",
@@ -406,6 +446,7 @@ __all__ = [
     "async_discard_file",
     "async_run_audio_pipeline",
     "async_stage_voice_reply",
+    "async_transcode_and_maybe_keep",
     "async_transcode_to_wav",
     "audio_suffix",
     "is_audio",
