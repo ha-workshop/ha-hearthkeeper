@@ -12,6 +12,12 @@ from custom_components.hearthkeeper import config_flow
 from custom_components.hearthkeeper.assist import PipelineSettings
 from custom_components.hearthkeeper.const import (
     CONF_ALLOW_GROUPS,
+    CONF_BRIEF_CALENDARS,
+    CONF_BRIEF_ENABLED,
+    CONF_BRIEF_HOME,
+    CONF_BRIEF_MAIL,
+    CONF_BRIEF_TIME,
+    CONF_BRIEF_WEATHER,
     CONF_PIPELINE_ID,
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
@@ -121,3 +127,35 @@ async def test_options_pipeline_none_is_stored_as_null(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_PIPELINE_ID] is None
+
+
+async def test_options_store_briefing_sources(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The options flow stores the briefing time and the picked entities."""
+    monkeypatch.setattr(config_flow, "async_list_pipelines", lambda hass: [PIPELINE])
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_TELEGRAM_ENTRY: "x"})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_PIPELINE_ID: "pipeline-1",
+            CONF_REPLY_MODE: "text",
+            CONF_BRIEF_ENABLED: True,
+            CONF_BRIEF_TIME: "07:30:00",
+            CONF_BRIEF_CALENDARS: ["calendar.inbox"],
+            CONF_BRIEF_WEATHER: "weather.home",
+            CONF_BRIEF_MAIL: ["sensor.mail"],
+            CONF_BRIEF_HOME: False,
+        },
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_BRIEF_ENABLED] is True
+    assert entry.options[CONF_BRIEF_TIME] == "07:30:00"
+    assert entry.options[CONF_BRIEF_CALENDARS] == ["calendar.inbox"]
+    assert entry.options[CONF_BRIEF_WEATHER] == "weather.home"
+    assert entry.options[CONF_BRIEF_MAIL] == ["sensor.mail"]
+    assert entry.options[CONF_BRIEF_HOME] is False

@@ -115,8 +115,8 @@ Telegram ──polling──> core telegram_bot (config entry, allowlist)
    await assist_pipeline.async_pipeline_from_audio_stream(
        hass,
        context=Context(),
-       event_callback=on_event,          # stt-end, intent-end, error
-       stt_metadata=SpeechMetadata(...), # WAV, PCM, 16 bit, 16 kHz, mono
+       event_callback=on_event,  # stt-end, intent-end, error
+       stt_metadata=SpeechMetadata(...),  # WAV, PCM, 16 bit, 16 kHz, mono
        stt_stream=chunks,
        pipeline_id=pipeline.id,
        conversation_id=f"tg:{chat_id}",
@@ -319,14 +319,9 @@ ha-hearthkeeper/
 │   ├── const.py
 │   ├── transport.py          # bus-события, фильтры, дедуп
 │   ├── voice.py              # ffmpeg decode/encode, Assist pipeline, TTS
-│   ├── brain.py              # conversation, режимы ответа
-│   ├── skills/
-│   │   ├── base.py           # Skill protocol, реестр
-│   │   ├── calendar.py
-│   │   ├── mail.py
-│   │   ├── home.py
-│   │   ├── brief.py
-│   │   └── todo.py
+│   ├── brain.py              # conversation, команды, режимы ответа
+│   ├── brief.py              # брифинг: календарь, погода, дом, покупки, почта
+│   ├── shop.py               # /shop и inline-кнопки
 │   ├── store.py
 │   ├── diagnostics.py
 │   ├── services.yaml
@@ -338,7 +333,9 @@ ha-hearthkeeper/
 │   ├── conftest.py           # hass fixture, фейковый transport
 │   ├── test_transport.py
 │   ├── test_voice.py
-│   ├── test_skills.py
+│   ├── test_brain.py
+│   ├── test_brief.py
+│   ├── test_shop.py
 │   └── test_config_flow.py
 ├── .github/workflows/{hassfest.yml,hacs.yml,test.yml}
 ├── hacs.json

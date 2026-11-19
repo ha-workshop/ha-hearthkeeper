@@ -39,4 +39,11 @@ reset:
 
 brief:
   name: Brief
-  description: Send the daily briefing now. Implemented in M3.
+  description: Send the daily briefing now, to one chat or to every known private chat.
+  fields:
+    chat_id:
+      name: Chat ID
+      description: Telegram chat to send the briefing to. Omit to send it to every known private chat.
+      selector:
+        number:
+          mode: box

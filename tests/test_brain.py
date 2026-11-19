@@ -425,3 +425,44 @@ async def test_both_mode_sends_text_first(
 
     assert transport.sent == [(42, "Готово")]
     assert transport.voices == [(42, "/media/hearthkeeper/answer.ogg")]
+
+
+async def test_brief_command_builds_the_briefing(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``/brief`` answers with the generated summary."""
+
+    async def _brief(hass_: HomeAssistant, sources: Any, language: str) -> str:
+        assert language == "ru"
+        return "Сводка дня"
+
+    monkeypatch.setattr(brain_module, "async_build_briefing", _brief)
+
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(
+        _message("/brief", kind=MessageKind.COMMAND, command="/brief", args=())
+    )
+
+    assert transport.sent == [(42, "Сводка дня")]
+
+
+async def test_scheduled_briefing_skips_groups(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The daily briefing goes to private chats only."""
+
+    async def _brief(hass_: HomeAssistant, sources: Any, language: str) -> str:
+        return "Сводка дня"
+
+    monkeypatch.setattr(brain_module, "async_build_briefing", _brief)
+
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+    brain._chats.get(42)
+    brain._chats.get(-100500)
+
+    await brain.async_send_briefing()
+
+    assert transport.sent == [(42, "Сводка дня")]

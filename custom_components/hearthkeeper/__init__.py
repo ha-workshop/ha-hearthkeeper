@@ -11,22 +11,32 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import (
     ConfigEntryError,
     ConfigEntryNotReady,
-    HomeAssistantError,
     ServiceValidationError,
 )
+from homeassistant.helpers.event import async_track_time_change
 
 from .assist import PipelineSettings, async_get_pipeline_settings
 from .brain import Brain
+from .brief import BriefingSources, parse_brief_time
 from .const import (
     ATTR_CHAT_ID,
     ATTR_TEXT,
     CONF_ALLOW_GROUPS,
+    CONF_BRIEF_CALENDARS,
+    CONF_BRIEF_ENABLED,
+    CONF_BRIEF_HOME,
+    CONF_BRIEF_MAIL,
+    CONF_BRIEF_TIME,
+    CONF_BRIEF_WEATHER,
     CONF_MAX_VOICE_SECONDS,
     CONF_PIPELINE_ID,
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
     CONF_TODO_ENTITY,
     DEFAULT_ALLOW_GROUPS,
+    DEFAULT_BRIEF_ENABLED,
+    DEFAULT_BRIEF_HOME,
+    DEFAULT_BRIEF_TIME,
     DEFAULT_MAX_VOICE_SECONDS,
     DEFAULT_OPTIONS,
     DEFAULT_REPLY_MODE,
@@ -53,6 +63,9 @@ class HearthkeeperRuntime:
     transport: Transport
     brain: Brain
     chats: ChatStore
+    briefing: BriefingSources
+    brief_enabled: bool
+    brief_time: str
 
     def handles_chat(self, chat_id: int) -> bool:
         """Return True when the chat belongs to this entry."""
@@ -105,6 +118,13 @@ async def async_setup_entry(
         allowed_chats=allowed_chats,
         allow_groups=bool(options.get(CONF_ALLOW_GROUPS, DEFAULT_ALLOW_GROUPS)),
     )
+    briefing = BriefingSources(
+        calendars=_str_list(options.get(CONF_BRIEF_CALENDARS)),
+        weather=_str_or_none(options.get(CONF_BRIEF_WEATHER)),
+        todo=_str_or_none(options.get(CONF_TODO_ENTITY)),
+        mail=_str_list(options.get(CONF_BRIEF_MAIL)),
+        home=bool(options.get(CONF_BRIEF_HOME, DEFAULT_BRIEF_HOME)),
+    )
     brain = Brain(
         hass,
         transport,
@@ -115,20 +135,26 @@ async def async_setup_entry(
         max_voice_seconds=(
             _as_int(options.get(CONF_MAX_VOICE_SECONDS)) or DEFAULT_MAX_VOICE_SECONDS
         ),
+        briefing=briefing,
     )
     transport.set_handler(brain.async_handle)
 
-    entry.runtime_data = HearthkeeperRuntime(
+    runtime = HearthkeeperRuntime(
         telegram_entry_id=telegram_entry.entry_id,
         allowed_chats=allowed_chats,
         pipeline=pipeline,
         transport=transport,
         brain=brain,
         chats=chats,
+        briefing=briefing,
+        brief_enabled=bool(options.get(CONF_BRIEF_ENABLED, DEFAULT_BRIEF_ENABLED)),
+        brief_time=_str_or_none(options.get(CONF_BRIEF_TIME)) or DEFAULT_BRIEF_TIME,
     )
+    entry.runtime_data = runtime
 
     transport.async_start()
     entry.async_on_unload(transport.async_stop)
+    _async_schedule_briefing(hass, entry, runtime)
     _async_register_services(hass)
     return True
 
@@ -179,6 +205,37 @@ def _allowed_chats(telegram_entry: ConfigEntry) -> set[int]:
 def _str_or_none(value: object) -> str | None:
     """Return the value when it is a non-empty string."""
     return value if isinstance(value, str) and value else None
+
+
+def _str_list(value: object) -> tuple[str, ...]:
+    """Return the entity ids of a multi-select option."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(item for item in value if isinstance(item, str) and item)
+
+
+@callback
+def _async_schedule_briefing(
+    hass: HomeAssistant,
+    entry: HearthkeeperConfigEntry,
+    runtime: HearthkeeperRuntime,
+) -> None:
+    """Send the briefing every day at the configured time."""
+    if not runtime.brief_enabled:
+        return
+
+    hour, minute = parse_brief_time(runtime.brief_time)
+
+    @callback
+    def _time_changed(now: object) -> None:
+        hass.async_create_task(
+            runtime.brain.async_send_briefing(),
+            "hearthkeeper morning briefing",
+        )
+
+    entry.async_on_unload(
+        async_track_time_change(hass, _time_changed, hour=hour, minute=minute, second=0)
+    )
 
 
 def _as_int(value: object) -> int | None:
@@ -256,7 +313,29 @@ async def _async_handle_reset(call: ServiceCall) -> None:
 
 
 async def _async_handle_brief(call: ServiceCall) -> None:
-    """Send the daily briefing. Implemented in M3."""
-    raise HomeAssistantError(
-        translation_domain=DOMAIN, translation_key="not_implemented"
-    )
+    """Send the briefing now, to one chat or to every known private chat."""
+    raw_chat_id = call.data.get(ATTR_CHAT_ID)
+    chat_id = _as_int(raw_chat_id) if raw_chat_id is not None else None
+    if raw_chat_id is not None and chat_id is None:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="invalid_service_data"
+        )
+
+    runtimes = _loaded_runtimes(call.hass)
+    if not runtimes:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="no_entries"
+        )
+
+    targets = runtimes
+    if chat_id is not None:
+        targets = [runtime for runtime in runtimes if runtime.handles_chat(chat_id)]
+        if not targets:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_chat",
+                translation_placeholders={"chat_id": str(chat_id)},
+            )
+
+    for runtime in targets:
+        await runtime.brain.async_send_briefing(chat_id)

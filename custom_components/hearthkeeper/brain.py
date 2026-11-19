@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 from .assist import PipelineSettings, extract_speech
+from .brief import BriefingSources, async_build_briefing
 from .const import (
     CONVERSATION_TIMEOUT,
     DEFAULT_LANGUAGE,
@@ -64,7 +65,6 @@ TEXTS: dict[str, dict[str, str]] = {
             "Голосовое сообщение слишком длинное. Максимум — {seconds} с."
         ),
         "voice_too_big": "Файл слишком большой для расшифровки.",
-        "brief_soon": "Брифинг появится в следующем обновлении.",
         "model_soon": "Смена агента появится в следующем обновлении.",
         "attachment_soon": (
             "Пока понимаю текст и голосовые сообщения — отправьте текст или голосовое."
@@ -101,7 +101,6 @@ TEXTS: dict[str, dict[str, str]] = {
             "The voice message is too long. The limit is {seconds} seconds."
         ),
         "voice_too_big": "The file is too large to transcribe.",
-        "brief_soon": "The briefing is coming in the next update.",
         "model_soon": "Switching the agent is coming in the next update.",
         "attachment_soon": (
             "I understand text and voice messages so far — send text or a voice note."
@@ -135,6 +134,7 @@ class Brain:
         reply_mode: str,
         todo_entity: str | None = None,
         max_voice_seconds: int = DEFAULT_MAX_VOICE_SECONDS,
+        briefing: BriefingSources | None = None,
     ) -> None:
         """Initialise the brain with entry-level defaults."""
         self.hass = hass
@@ -143,6 +143,7 @@ class Brain:
         self._pipeline = pipeline
         self._default_reply_mode = reply_mode
         self._max_voice_seconds = max_voice_seconds
+        self._briefing = briefing or BriefingSources()
         self._shop = ShopSkill(hass, transport, todo_entity)
 
     async def async_handle(self, message: IncomingMessage) -> None:
@@ -226,7 +227,13 @@ class Brain:
             chat.last_agent = agent_id
             await self._chats.async_save()
 
-        await self._async_deliver(message, chat, reply)
+        await self._async_deliver(
+            chat,
+            reply,
+            chat_id=message.chat_id,
+            message_id=message.message_id,
+            thread_id=message.thread_id,
+        )
 
     async def _async_answer_voice(
         self, message: IncomingMessage, chat: ChatContext
@@ -314,62 +321,106 @@ class Brain:
             await self._reply(message, self._text(chat, "empty"))
             return
 
-        await self._async_deliver(message, chat, result.text)
+        await self._async_deliver(
+            chat,
+            result.text,
+            chat_id=message.chat_id,
+            message_id=message.message_id,
+            thread_id=message.thread_id,
+        )
 
     async def _async_deliver(
-        self, message: IncomingMessage, chat: ChatContext, text: str
+        self,
+        chat: ChatContext,
+        text: str,
+        *,
+        chat_id: int,
+        message_id: int | None = None,
+        thread_id: int | None = None,
     ) -> None:
         """Send an agent answer as text, voice or both."""
         mode = chat.reply_mode or self._default_reply_mode
+        reply_to = message_id if message_id is not None and chat_id < 0 else None
         text_sent = False
         if mode == REPLY_MODE_BOTH:
             # Text first: it arrives while the speech is still being generated.
-            await self._reply(message, text)
+            await self._transport.async_send_text(
+                chat_id, text, thread_id=thread_id, reply_to=reply_to
+            )
             text_sent = True
 
         if mode == REPLY_MODE_TEXT or self._pipeline is None:
             if not text_sent:
-                await self._reply(message, text)
+                await self._transport.async_send_text(
+                    chat_id, text, thread_id=thread_id, reply_to=reply_to
+                )
             return
         if not self._pipeline.tts_engine:
             if not text_sent:
-                await self._reply(message, text)
+                await self._transport.async_send_text(
+                    chat_id, text, thread_id=thread_id, reply_to=reply_to
+                )
             return
 
         await self._transport.async_send_chat_action(
-            message.chat_id, "record_voice", thread_id=message.thread_id
+            chat_id, "record_voice", thread_id=thread_id
         )
 
         staged: Path | None = None
         try:
             staged = await async_stage_voice_reply(self.hass, self._pipeline, text)
         except TimeoutError:
-            _LOGGER.error("Text-to-speech timed out in chat %s", message.chat_id)
+            _LOGGER.error("Text-to-speech timed out in chat %s", chat_id)
         except HomeAssistantError as err:
             _LOGGER.error(
                 "Text-to-speech failed in chat %s (%s)",
-                message.chat_id,
+                chat_id,
                 type(err).__name__,
             )
 
         if staged is None:
             # Text is always better than silence, whatever the mode was.
             if not text_sent:
-                await self._reply(message, text)
+                await self._transport.async_send_text(
+                    chat_id, text, thread_id=thread_id, reply_to=reply_to
+                )
             return
 
         try:
             sent = await self._transport.async_send_voice(
-                message.chat_id,
+                chat_id,
                 str(staged),
-                thread_id=message.thread_id,
-                reply_to=message.message_id if message.chat_id < 0 else None,
+                thread_id=thread_id,
+                reply_to=reply_to,
             )
         finally:
             await async_discard_file(self.hass, staged)
 
         if not sent and not text_sent:
-            await self._reply(message, text)
+            await self._transport.async_send_text(
+                chat_id, text, thread_id=thread_id, reply_to=reply_to
+            )
+
+    async def async_send_briefing(self, chat_id: int | None = None) -> None:
+        """Build and deliver the briefing to one chat or every private chat."""
+        if chat_id is not None:
+            targets = [chat_id]
+        else:
+            targets = [
+                known.chat_id
+                for known in self._chats.chats.values()
+                if known.chat_id > 0
+            ]
+        if not targets:
+            _LOGGER.debug("No private chat is known yet, skipping the briefing")
+            return
+
+        for target in targets:
+            chat = self._chats.get(target)
+            text = await async_build_briefing(
+                self.hass, self._briefing, self._language(chat)
+            )
+            await self._async_deliver(chat, text, chat_id=target)
 
     async def _async_handle_command(
         self, message: IncomingMessage, chat: ChatContext
@@ -388,13 +439,25 @@ class Brain:
         elif command == "shop":
             await self._shop.async_handle_command(message, self._language(chat))
         elif command == "brief":
-            await self._reply(message, self._text(chat, "brief_soon"))
+            await self._async_briefing_command(message, chat)
         elif command == "model":
             await self._reply(message, self._text(chat, "model_soon"))
         else:
             # Another automation may own this command (for example /shop or
             # /video). Staying quiet keeps both working in the same chat.
             _LOGGER.debug("Ignoring command %s: not ours", command)
+
+    async def _async_briefing_command(
+        self, message: IncomingMessage, chat: ChatContext
+    ) -> None:
+        """Build the briefing and send it to this chat."""
+        await self._transport.async_send_chat_action(
+            message.chat_id, "typing", thread_id=message.thread_id
+        )
+        text = await async_build_briefing(
+            self.hass, self._briefing, self._language(chat)
+        )
+        await self._reply(message, text)
 
     async def _async_voice_command(
         self, message: IncomingMessage, chat: ChatContext

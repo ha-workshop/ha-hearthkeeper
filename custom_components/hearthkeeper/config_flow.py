@@ -24,12 +24,19 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
+    TimeSelector,
 )
 from homeassistant.helpers.translation import async_get_translations
 
 from .assist import async_list_pipelines
 from .const import (
     CONF_ALLOW_GROUPS,
+    CONF_BRIEF_CALENDARS,
+    CONF_BRIEF_ENABLED,
+    CONF_BRIEF_HOME,
+    CONF_BRIEF_MAIL,
+    CONF_BRIEF_TIME,
+    CONF_BRIEF_WEATHER,
     CONF_MAX_VOICE_SECONDS,
     CONF_PIPELINE_ID,
     CONF_REPLY_MODE,
@@ -184,6 +191,46 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                         unit_of_measurement="s",
                     )
                 ),
+                vol.Optional(
+                    CONF_BRIEF_ENABLED,
+                    default=options.get(
+                        CONF_BRIEF_ENABLED, DEFAULT_OPTIONS[CONF_BRIEF_ENABLED]
+                    ),
+                ): BooleanSelector(),
+                vol.Optional(
+                    CONF_BRIEF_TIME,
+                    default=options.get(
+                        CONF_BRIEF_TIME, DEFAULT_OPTIONS[CONF_BRIEF_TIME]
+                    ),
+                ): TimeSelector(),
+                vol.Optional(
+                    CONF_BRIEF_CALENDARS,
+                    description={
+                        "suggested_value": list(options.get(CONF_BRIEF_CALENDARS) or ())
+                    },
+                ): EntitySelector(
+                    EntitySelectorConfig(domain="calendar", multiple=True)
+                ),
+                vol.Optional(
+                    CONF_BRIEF_WEATHER,
+                    description={"suggested_value": options.get(CONF_BRIEF_WEATHER)},
+                ): EntitySelector(EntitySelectorConfig(domain="weather")),
+                vol.Optional(
+                    CONF_BRIEF_MAIL,
+                    description={
+                        "suggested_value": list(options.get(CONF_BRIEF_MAIL) or ())
+                    },
+                ): EntitySelector(
+                    EntitySelectorConfig(
+                        domain="sensor", integration="imap", multiple=True
+                    )
+                ),
+                vol.Optional(
+                    CONF_BRIEF_HOME,
+                    default=options.get(
+                        CONF_BRIEF_HOME, DEFAULT_OPTIONS[CONF_BRIEF_HOME]
+                    ),
+                ): BooleanSelector(),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
