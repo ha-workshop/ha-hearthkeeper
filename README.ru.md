@@ -8,6 +8,9 @@
 ядро `telegram_bot`: Hearthkeeper слушает его события на шине, общается с
 агентом `conversation` и отвечает через сервисы `telegram_bot`.
 
+[![Открыть Hearthkeeper в HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=ha-workshop&repository=ha-hearthkeeper&category=integration)
+[![Добавить интеграцию Hearthkeeper](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hearthkeeper)
+
 ## Статус
 
 | Этап | Объём | Состояние |
@@ -26,10 +29,12 @@
 
 ## Установка
 
-1. HACS → ⋮ → Custom repositories → добавьте
-   `https://github.com/ha-workshop/ha-hearthkeeper` как **Integration**.
-2. Установите **Hearthkeeper**, перезапустите Home Assistant.
-3. Настройки → Устройства и службы → Добавить интеграцию → **Hearthkeeper**.
+1. Нажмите **Открыть Hearthkeeper в HACS** выше или добавьте
+   `https://github.com/ha-workshop/ha-hearthkeeper` как пользовательский
+   репозиторий типа **Integration** в HACS.
+2. Установите **Hearthkeeper** и перезапустите Home Assistant.
+3. Нажмите **Добавить интеграцию Hearthkeeper** выше или откройте
+   **Настройки → Устройства и службы → Добавить интеграцию → Hearthkeeper**.
 4. Выберите бота Telegram, затем откройте **Настроить** и укажите пайплайн
    Assist (агент, STT, TTS и голос берутся из него) и режим ответа.
 
