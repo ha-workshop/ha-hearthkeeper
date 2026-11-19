@@ -1,0 +1,20 @@
+[project]
+name = "ha-hearthkeeper"
+version = "0.1.0"
+description = "Telegram assistant for Home Assistant"
+requires-python = ">=3.13"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+extend-exclude = ["custom_components/hearthkeeper/translations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+# Russian strings contain Cyrillic letters that look like Latin ones; that is
+# expected, not a typo.
+ignore = ["RUF001", "RUF002", "RUF003"]

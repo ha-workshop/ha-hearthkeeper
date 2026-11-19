@@ -1,0 +1,42 @@
+say:
+  name: Say
+  description: Send a text message to a Telegram chat through Hearthkeeper.
+  fields:
+    chat_id:
+      name: Chat ID
+      description: Telegram chat ID the bot is allowed to talk to.
+      required: true
+      selector:
+        number:
+          mode: box
+    text:
+      name: Text
+      description: Message to send. It is sent as plain text.
+      required: true
+      selector:
+        text:
+          multiline: true
+    mode:
+      name: Mode
+      description: Reply mode kept for voice support. Text is always sent in this version.
+      selector:
+        select:
+          options:
+            - text
+            - voice
+            - both
+
+reset:
+  name: Reset
+  description: Forget the conversation context of one chat or of every chat.
+  fields:
+    chat_id:
+      name: Chat ID
+      description: Chat to reset. Omit to reset every chat.
+      selector:
+        number:
+          mode: box
+
+brief:
+  name: Brief
+  description: Send the daily briefing now. Implemented in M3.

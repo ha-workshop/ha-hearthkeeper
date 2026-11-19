@@ -1,0 +1,111 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Hearthkeeper",
+        "description": "Choose the Telegram bot Hearthkeeper will listen to. Add allowed chats in the Telegram bot integration first.",
+        "data": {
+          "telegram_entry": "Telegram bot"
+        }
+      }
+    },
+    "error": {
+      "invalid_telegram_entry": "That config entry is not a Telegram bot."
+    },
+    "abort": {
+      "already_configured": "This Telegram bot is already used by Hearthkeeper.",
+      "no_telegram_bot": "No Telegram bot integration found. Set up the Telegram bot integration first."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Hearthkeeper settings",
+        "data": {
+          "pipeline_id": "Voice assistant",
+          "reply_mode": "Reply mode",
+          "allow_groups": "Allow group chats"
+        },
+        "data_description": {
+          "pipeline_id": "Assist pipeline from Settings > Voice assistants. It already holds the conversation agent, STT, TTS and language. Choose none to echo messages back.",
+          "reply_mode": "How to answer. Voice replies arrive in M2; text is always sent for now.",
+          "allow_groups": "In groups, answer only commands, @mentions and replies to the bot."
+        }
+      }
+    }
+  },
+  "selector": {
+    "pipeline": {
+      "options": {
+        "none": "No pipeline (echo replies)"
+      }
+    },
+    "reply_mode": {
+      "options": {
+        "text": "Text",
+        "voice": "Voice",
+        "both": "Text and voice"
+      }
+    }
+  },
+  "services": {
+    "say": {
+      "name": "Say",
+      "description": "Send a text message to a Telegram chat through Hearthkeeper.",
+      "fields": {
+        "chat_id": {
+          "name": "Chat ID",
+          "description": "Telegram chat ID the bot is allowed to talk to."
+        },
+        "text": {
+          "name": "Text",
+          "description": "Message to send. It is sent as plain text."
+        },
+        "mode": {
+          "name": "Mode",
+          "description": "Reply mode kept for voice support. Text is always sent in this version."
+        }
+      }
+    },
+    "reset": {
+      "name": "Reset",
+      "description": "Forget the conversation context of one chat or of every chat.",
+      "fields": {
+        "chat_id": {
+          "name": "Chat ID",
+          "description": "Chat to reset. Omit to reset every chat."
+        }
+      }
+    },
+    "brief": {
+      "name": "Brief",
+      "description": "Send the daily briefing now. Implemented in M3."
+    }
+  },
+  "exceptions": {
+    "telegram_entry_missing": {
+      "message": "The Telegram bot config entry no longer exists."
+    },
+    "telegram_entry_not_loaded": {
+      "message": "The Telegram bot is not loaded yet. Hearthkeeper will retry."
+    },
+    "pipeline_not_ready": {
+      "message": "The Assist pipeline integration is not loaded yet. Hearthkeeper will retry."
+    },
+    "pipeline_not_found": {
+      "message": "The Assist pipeline {pipeline_id} no longer exists. Pick another one in the integration options."
+    },
+    "invalid_service_data": {
+      "message": "chat_id and text are required."
+    },
+    "unknown_chat": {
+      "message": "Chat {chat_id} does not belong to Hearthkeeper."
+    },
+    "no_entries": {
+      "message": "Hearthkeeper is not set up."
+    },
+    "not_implemented": {
+      "message": "This action is not implemented yet."
+    }
+  }
+}

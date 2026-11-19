@@ -1,0 +1,111 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Настройка Hearthkeeper",
+        "description": "Выберите бота Telegram, которого Hearthkeeper будет слушать. Разрешённые чаты сначала добавьте в интеграции Telegram bot.",
+        "data": {
+          "telegram_entry": "Бот Telegram"
+        }
+      }
+    },
+    "error": {
+      "invalid_telegram_entry": "Эта запись конфигурации не является ботом Telegram."
+    },
+    "abort": {
+      "already_configured": "Этот бот Telegram уже используется в Hearthkeeper.",
+      "no_telegram_bot": "Интеграция Telegram bot не найдена. Сначала настройте её."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Настройки Hearthkeeper",
+        "data": {
+          "pipeline_id": "Голосовой ассистент",
+          "reply_mode": "Режим ответа",
+          "allow_groups": "Разрешить группы"
+        },
+        "data_description": {
+          "pipeline_id": "Пайплайн Assist из «Настройки → Голосовые ассистенты». В нём уже заданы агент разговора, STT, TTS и язык. Выберите «без пайплайна», чтобы бот просто повторял текст.",
+          "reply_mode": "Как отвечать. Голосовые ответы появятся в M2, пока текст отправляется всегда.",
+          "allow_groups": "В группах отвечать только на команды, @упоминания и реплаи боту."
+        }
+      }
+    }
+  },
+  "selector": {
+    "pipeline": {
+      "options": {
+        "none": "Без пайплайна (эхо-ответы)"
+      }
+    },
+    "reply_mode": {
+      "options": {
+        "text": "Текст",
+        "voice": "Голос",
+        "both": "Текст и голос"
+      }
+    }
+  },
+  "services": {
+    "say": {
+      "name": "Сказать",
+      "description": "Отправить текстовое сообщение в чат Telegram через Hearthkeeper.",
+      "fields": {
+        "chat_id": {
+          "name": "ID чата",
+          "description": "ID чата Telegram, с которым боту разрешено общаться."
+        },
+        "text": {
+          "name": "Текст",
+          "description": "Сообщение. Отправляется как обычный текст."
+        },
+        "mode": {
+          "name": "Режим",
+          "description": "Режим ответа на будущее. В этой версии текст отправляется всегда."
+        }
+      }
+    },
+    "reset": {
+      "name": "Сбросить",
+      "description": "Забыть контекст разговора одного чата или всех чатов.",
+      "fields": {
+        "chat_id": {
+          "name": "ID чата",
+          "description": "Чат для сброса. Не указывайте, чтобы сбросить все."
+        }
+      }
+    },
+    "brief": {
+      "name": "Брифинг",
+      "description": "Отправить сводку дня сейчас. Появится в M3."
+    }
+  },
+  "exceptions": {
+    "telegram_entry_missing": {
+      "message": "Запись конфигурации бота Telegram больше не существует."
+    },
+    "telegram_entry_not_loaded": {
+      "message": "Бот Telegram ещё не загружен. Hearthkeeper повторит попытку."
+    },
+    "pipeline_not_ready": {
+      "message": "Интеграция Assist pipeline ещё не загружена. Hearthkeeper повторит попытку."
+    },
+    "pipeline_not_found": {
+      "message": "Пайплайн Assist {pipeline_id} больше не существует. Выберите другой в настройках интеграции."
+    },
+    "invalid_service_data": {
+      "message": "Нужны chat_id и text."
+    },
+    "unknown_chat": {
+      "message": "Чат {chat_id} не относится к Hearthkeeper."
+    },
+    "no_entries": {
+      "message": "Hearthkeeper не настроен."
+    },
+    "not_implemented": {
+      "message": "Это действие пока не реализовано."
+    }
+  }
+}
