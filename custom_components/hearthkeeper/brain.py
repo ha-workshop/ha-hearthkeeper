@@ -235,6 +235,7 @@ class Brain:
         brief_enabled: bool = False,
         brief_time: str = "",
         brief_chats: tuple[int, ...] = (),
+        webapp_url: str | None = None,
     ) -> None:
         """Initialise the brain with entry-level defaults."""
         self.hass = hass
@@ -254,6 +255,7 @@ class Brain:
         self._brief_enabled = brief_enabled
         self._brief_time = brief_time
         self._brief_chats = brief_chats
+        self._webapp_url = webapp_url
         self._shop = ShopSkill(hass, transport, todo_entity)
         self._skills = skills or SkillRouter(
             hass, self._briefing, mailbox, allow_cloud_for_mail
@@ -997,7 +999,7 @@ class Brain:
         if message.chat_id < 0:
             await self._reply(message, self._text(chat, "web_private_only"))
             return
-        url = get_webapp_url(self.hass)
+        url = get_webapp_url(self.hass, self._webapp_url)
         if url is None:
             await self._reply(message, self._text(chat, "web_no_url"))
             return

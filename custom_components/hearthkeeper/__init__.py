@@ -41,6 +41,7 @@ from .const import (
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
     CONF_TODO_ENTITY,
+    CONF_WEBAPP_URL,
     DEFAULT_ALLOW_CLOUD_FOR_MAIL,
     DEFAULT_ALLOW_GROUPS,
     DEFAULT_BRIEF_ENABLED,
@@ -201,6 +202,7 @@ async def async_setup_entry(
         brief_enabled=brief_enabled,
         brief_time=brief_time,
         brief_chats=brief_chats,
+        webapp_url=_str_or_none(options.get(CONF_WEBAPP_URL)),
     )
     transport.set_handler(brain.async_handle)
     entry.async_on_unload(brain.async_stop)

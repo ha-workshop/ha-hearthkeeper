@@ -23,6 +23,11 @@ CONF_KEEP_AUDIO: Final = "keep_audio"
 CONF_ALLOW_CLOUD_FOR_MAIL: Final = "allow_cloud_for_mail"
 CONF_MAX_VOICE_SECONDS: Final = "max_voice_seconds"
 
+# Mini App. Telegram opens Mini Apps over HTTPS only, so an explicit public
+# address can be set when the automatic external/cloud URL is not the one the
+# Telegram clients can reach (for example a tunnel in front of Home Assistant).
+CONF_WEBAPP_URL: Final = "webapp_url"
+
 # Briefing. Sources are entity ids picked in the options flow, so the same
 # calendars, weather entity and mail sensors the user already sees in Home
 # Assistant feed the Telegram summary.
@@ -66,6 +71,7 @@ DEFAULT_OPTIONS: Final[dict[str, object]] = {
     CONF_KEEP_AUDIO: DEFAULT_KEEP_AUDIO,
     CONF_MAX_VOICE_SECONDS: DEFAULT_MAX_VOICE_SECONDS,
     CONF_ALLOW_CLOUD_FOR_MAIL: DEFAULT_ALLOW_CLOUD_FOR_MAIL,
+    CONF_WEBAPP_URL: None,
     CONF_BRIEF_ENABLED: DEFAULT_BRIEF_ENABLED,
     CONF_BRIEF_TIME: DEFAULT_BRIEF_TIME,
     CONF_BRIEF_CALENDARS: (),

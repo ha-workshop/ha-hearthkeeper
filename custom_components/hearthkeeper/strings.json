@@ -25,6 +25,7 @@
           "pipeline_id": "Voice assistant",
           "reply_mode": "Reply mode",
           "allow_groups": "Allow group chats",
+          "webapp_url": "Mini App URL",
           "todo_entity": "Shopping list",
           "max_voice_seconds": "Longest voice message",
           "brief_enabled": "Morning briefing",
@@ -38,6 +39,7 @@
           "pipeline_id": "Assist pipeline from Settings > Voice assistants. It already holds the conversation agent, STT, TTS and language. Choose none to echo messages back.",
           "reply_mode": "How to answer agent replies. Commands always answer with text.",
           "allow_groups": "In groups, answer only commands, @mentions and replies to the bot.",
+          "webapp_url": "Public HTTPS address Telegram clients use to open the Mini App, for example a tunnel. Leave it empty to use the external or Home Assistant Cloud URL.",
           "todo_entity": "Todo list used by /shop and the shopping section of the briefing. Leave empty to disable both.",
           "max_voice_seconds": "Voice messages longer than this are refused before decoding.",
           "brief_enabled": "Send the briefing every day to every private chat the bot has talked in. /brief works even when this is off.",
@@ -48,6 +50,9 @@
           "brief_home": "Show lights, open doors and windows, and active climate."
         }
       }
+    },
+    "error": {
+      "invalid_webapp_url": "Use an HTTPS address without a query or fragment."
     }
   },
   "selector": {

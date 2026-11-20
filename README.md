@@ -25,6 +25,7 @@ replies through `telegram_bot` services.
 | M2 | voice output, groups, dedup across restarts | ✅ |
 | M3 | briefing from calendar, weather, mail, todo and house state | ✅ |
 | M4 | `/model`, inline buttons, diagnostics, packaging | ✅ |
+| M5 | Mini App: personal settings, briefing and quiet hours | ✅ |
 
 ## Requirements
 
@@ -99,6 +100,33 @@ daily message goes to every private chat the bot has already talked in.
 `/brief` and `hearthkeeper.brief` build the same summary on demand; an empty or
 broken source only removes its own section.
 
+## Mini App
+
+`/web` sends a button that opens Hearthkeeper inside Telegram. The Mini App is
+a settings dashboard, not a second chat:
+
+- **Home** — the agent, the reply mode, a new conversation and active reminders;
+- **Skills** — the phrases Hearthkeeper answers without the agent;
+- **House** — the briefing sources and schedule;
+- **Settings** — personal briefing time and sources, quiet hours, language and
+  the bot account. Quick actions (`/brief`, `/shop`, `/mail`, `/remind`) send
+  the command to the chat and the answer arrives as a normal message.
+
+Personal settings belong to the Telegram account that opened the app and are
+kept with its private chat; the integration options stay the household defaults
+and are edited only in Home Assistant. Calendars and mailboxes can only be
+picked from the pool an administrator already enabled.
+
+The page is served at `/api/hearthkeeper/webapp` and carries no Home Assistant
+data. Every call carries Telegram `initData`; the signature is checked against
+the bot token, the user must be in the bot's allowed chats, and only that
+user's own private chat can be changed.
+
+Telegram opens Mini Apps only over HTTPS. Hearthkeeper uses the external URL or
+the Home Assistant Cloud URL automatically. If neither is reachable by Telegram
+clients, set **Mini App URL** in **Configure** to the public HTTPS address (an
+existing tunnel or reverse proxy); the page path is appended for you.
+
 ## Services
 
 ```yaml
@@ -122,8 +150,9 @@ without it the chat's own reply mode is used.
 ## Privacy
 
 - Only control data is stored: chat id, conversation id, agent, reply mode,
-  language, timestamps. Message texts, reminders and mail/calendar content
-  never touch disk; pending reminders live in memory only.
+  language, timestamps and the personal briefing/quiet-hour choices from the
+  Mini App. Message texts, reminders and mail/calendar content never touch
+  disk; pending reminders live in memory only.
 - Nothing leaves the house except Telegram itself. Cloud agents are opt-in via
   the agent you choose, and mail summaries are a separate opt-in
   (**AI summary for mail**).

@@ -96,6 +96,39 @@ async def test_webapp_url_requires_https(hass: HomeAssistant) -> None:
     assert get_webapp_url(hass) == f"https://home.example.org{WEBAPP_PATH}"
 
 
+def test_webapp_url_override(hass: HomeAssistant) -> None:
+    """A tunnel address from the options is used instead of the automatic URL."""
+    hass.config.external_url = None
+    hass.config.internal_url = None
+
+    assert (
+        get_webapp_url(hass, "https://tunnel.example.org")
+        == f"https://tunnel.example.org{WEBAPP_PATH}"
+    )
+    assert (
+        get_webapp_url(hass, "https://tunnel.example.org/")
+        == f"https://tunnel.example.org{WEBAPP_PATH}"
+    )
+    assert (
+        get_webapp_url(hass, "https://tunnel.example.org/ha")
+        == f"https://tunnel.example.org/ha{WEBAPP_PATH}"
+    )
+    # A full Mini App URL must not get the path twice.
+    assert (
+        get_webapp_url(hass, f"https://tunnel.example.org{WEBAPP_PATH}")
+        == f"https://tunnel.example.org{WEBAPP_PATH}"
+    )
+    for bad in (
+        "http://tunnel.example.org",
+        "https://tunnel.example.org/?a=1",
+        "https://tunnel.example.org/#x",
+        "tunnel.example.org",
+        42,
+    ):
+        assert get_webapp_url(hass, bad) is None
+    assert get_webapp_url(hass, "") is None
+
+
 class FakeBrain:
     """Record what the API asks the brain to do."""
 

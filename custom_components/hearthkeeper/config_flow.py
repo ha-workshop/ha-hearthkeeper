@@ -24,6 +24,9 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
     TimeSelector,
 )
 from homeassistant.helpers.translation import async_get_translations
@@ -47,6 +50,7 @@ from .const import (
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
     CONF_TODO_ENTITY,
+    CONF_WEBAPP_URL,
     DEFAULT_OPTIONS,
     DOMAIN,
     NAME,
@@ -54,6 +58,7 @@ from .const import (
     REPLY_MODES,
     TELEGRAM_DOMAIN,
 )
+from .webapp import clean_webapp_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -131,12 +136,32 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
     ) -> ConfigFlowResult:
         """Handle the options step."""
         if user_input is not None:
+            try:
+                user_input[CONF_WEBAPP_URL] = clean_webapp_url(
+                    user_input.get(CONF_WEBAPP_URL)
+                )
+            except ValueError:
+                raw = user_input.get(CONF_WEBAPP_URL)
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=await self._async_schema(
+                        webapp_url=raw if isinstance(raw, str) and raw else None
+                    ),
+                    errors={"base": "invalid_webapp_url"},
+                )
+
             pipeline_id = user_input.get(CONF_PIPELINE_ID)
             user_input[CONF_PIPELINE_ID] = (
                 None if pipeline_id in (None, "", PIPELINE_NONE) else pipeline_id
             )
             return self.async_create_entry(data=user_input)
 
+        return self.async_show_form(
+            step_id="init", data_schema=await self._async_schema()
+        )
+
+    async def _async_schema(self, webapp_url: str | None = None) -> vol.Schema:
+        """Build the options form; ``webapp_url`` keeps a rejected value."""
         options = dict(DEFAULT_OPTIONS) | dict(self.config_entry.options)
         pipelines = async_list_pipelines(self.hass)
         selected = options.get(CONF_PIPELINE_ID)
@@ -177,6 +202,14 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                         CONF_ALLOW_GROUPS, DEFAULT_OPTIONS[CONF_ALLOW_GROUPS]
                     ),
                 ): BooleanSelector(),
+                vol.Optional(
+                    CONF_WEBAPP_URL,
+                    description={
+                        "suggested_value": webapp_url
+                        if webapp_url is not None
+                        else options.get(CONF_WEBAPP_URL)
+                    },
+                ): TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
                 vol.Optional(
                     CONF_TODO_ENTITY,
                     description={"suggested_value": options.get(CONF_TODO_ENTITY)},
@@ -281,7 +314,7 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                 ),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return schema
 
     def _known_private_chats(self) -> set[int]:
         """Return private chat IDs the bot has seen (from store)."""

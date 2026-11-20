@@ -21,6 +21,7 @@ from custom_components.hearthkeeper.const import (
     CONF_PIPELINE_ID,
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
+    CONF_WEBAPP_URL,
     DOMAIN,
 )
 
@@ -127,6 +128,51 @@ async def test_options_pipeline_none_is_stored_as_null(
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_PIPELINE_ID] is None
+
+
+async def test_options_store_webapp_url(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tunnel address is normalised and stored, so /web can use it."""
+    monkeypatch.setattr(config_flow, "async_list_pipelines", lambda hass: [])
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_TELEGRAM_ENTRY: "x"})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_PIPELINE_ID: "none",
+            CONF_REPLY_MODE: "text",
+            CONF_WEBAPP_URL: "https://tunnel.example.org/",
+        },
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_WEBAPP_URL] == "https://tunnel.example.org"
+
+
+async def test_options_reject_non_https_webapp_url(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Telegram cannot open an HTTP Mini App, so the form asks again."""
+    monkeypatch.setattr(config_flow, "async_list_pipelines", lambda hass: [])
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_TELEGRAM_ENTRY: "x"})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_PIPELINE_ID: "none",
+            CONF_REPLY_MODE: "text",
+            CONF_WEBAPP_URL: "http://tunnel.example.org",
+        },
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_webapp_url"}
+    assert CONF_WEBAPP_URL not in entry.options
 
 
 async def test_options_store_briefing_sources(

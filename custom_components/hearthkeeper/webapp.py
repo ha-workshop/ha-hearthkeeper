@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, urlsplit
 
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
@@ -138,12 +138,45 @@ def _str_or_none(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def get_webapp_url(hass: HomeAssistant) -> str | None:
+def clean_webapp_url(value: object) -> str | None:
+    """Return a base HTTPS URL for the Mini App, or ``None`` when empty.
+
+    The value is the address Telegram clients use to reach Home Assistant,
+    without the page path. A full Mini App URL is accepted and reduced to its
+    base so the path is never appended twice.
+
+    Raises ``ValueError`` when the value cannot be used: Telegram opens Mini
+    Apps over HTTPS only, and a query or fragment would break the page path.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("webapp_url is not a string")
+    text = value.strip()
+    if not text:
+        return None
+    parts = urlsplit(text)
+    if parts.scheme != "https" or not parts.netloc or parts.query or parts.fragment:
+        raise ValueError("webapp_url is not an HTTPS base URL")
+    base = text.rstrip("/")
+    if base.endswith(WEBAPP_PATH):
+        base = base[: -len(WEBAPP_PATH)].rstrip("/")
+    return base
+
+
+def get_webapp_url(hass: HomeAssistant, override: object = None) -> str | None:
     """Return the HTTPS URL of the Mini App, or ``None`` when there is none.
 
     Telegram opens Mini Apps only over HTTPS, so a plain HTTP address is not
-    good enough.
+    good enough. ``override`` is the address configured in the integration
+    options; without it Home Assistant's external or cloud URL is used.
     """
+    if override is not None:
+        try:
+            base = clean_webapp_url(override)
+        except ValueError:
+            return None
+        return None if base is None else base + WEBAPP_PATH
     try:
         base = get_url(hass, require_ssl=True, prefer_external=True)
     except NoURLAvailableError:

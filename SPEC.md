@@ -360,7 +360,7 @@ ha-hearthkeeper/
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/ha-workshop/ha-hearthkeeper/issues",
-  "version": "0.1.0"
+  "version": "0.2.0"
 }
 ```
 

@@ -146,6 +146,7 @@ def _brain(
     transport: FakeTransport,
     pipeline: PipelineSettings | None = PIPELINE,
     reply_mode: str = "text",
+    **kwargs: Any,
 ) -> Brain:
     return Brain(
         hass,  # type: ignore[arg-type]
@@ -153,6 +154,7 @@ def _brain(
         ChatStore(hass),
         pipeline=pipeline,
         reply_mode=reply_mode,
+        **kwargs,
     )
 
 
@@ -801,6 +803,20 @@ async def test_web_command_without_https(hass: HomeAssistant) -> None:
 
     assert transport.web_buttons == []
     assert "HTTPS" in transport.sent[0][1]
+
+
+async def test_web_command_uses_the_configured_url(hass: HomeAssistant) -> None:
+    """A tunnel address from the options wins over the automatic URL."""
+    hass.config.external_url = None
+    hass.config.internal_url = None
+    transport = FakeTransport()
+    brain = _brain(hass, transport, webapp_url="https://tunnel.example.org/")
+
+    await brain.async_handle(_message("/web", kind=MessageKind.COMMAND, command="/web"))
+
+    assert transport.web_buttons == [
+        (42, "https://tunnel.example.org/api/hearthkeeper/webapp")
+    ]
 
 
 async def test_web_command_in_group_is_refused(hass: HomeAssistant) -> None:
