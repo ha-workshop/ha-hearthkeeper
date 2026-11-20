@@ -214,7 +214,7 @@ async def test_audio_pipeline_requires_stt(
 
 
 async def test_transcode_and_keep_moves_file(
-    hass: HomeAssistant, tmp_path: Path
+    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """When ``keep`` is True the source is moved to the saved directory."""
     source = tmp_path / "test.wav"
@@ -225,6 +225,14 @@ async def test_transcode_and_keep_moves_file(
         w.setframerate(16000)
         w.writeframes(b"\x00" * 320)
     source.write_bytes(fake.getvalue())
+
+    # Staging and moving must not depend on ffmpeg being installed.
+    async def _transcode(
+        hass_: HomeAssistant, path: Path, *, max_seconds: int
+    ) -> bytes:
+        return path.read_bytes()
+
+    monkeypatch.setattr(voice, "async_transcode_to_wav", _transcode)
 
     wav, moved = await async_transcode_and_maybe_keep(
         hass, source, max_seconds=60, keep=True
@@ -241,7 +249,7 @@ async def test_transcode_and_keep_moves_file(
 
 
 async def test_transcode_and_not_keep_does_not_move(
-    hass: HomeAssistant, tmp_path: Path
+    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """When keep is False the source stays and the caller must discard it."""
     source = tmp_path / "test.opus"
@@ -252,6 +260,13 @@ async def test_transcode_and_not_keep_does_not_move(
         w.setframerate(16000)
         w.writeframes(b"\x00" * 320)
     source.write_bytes(fake.getvalue())
+
+    async def _transcode(
+        hass_: HomeAssistant, path: Path, *, max_seconds: int
+    ) -> bytes:
+        return path.read_bytes()
+
+    monkeypatch.setattr(voice, "async_transcode_to_wav", _transcode)
 
     wav, moved = await async_transcode_and_maybe_keep(
         hass, source, max_seconds=60, keep=False
