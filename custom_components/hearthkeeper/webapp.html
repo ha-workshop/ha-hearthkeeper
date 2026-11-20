@@ -1,201 +1,789 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
 <title>Hearthkeeper</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0b0f;
+  --card:#1c1c1f;
+  --card-2:#2a2a2e;
+  --sep:rgba(255,255,255,.08);
+  --text:#fff;
+  --hint:#8e8e93;
+  --accent:#8b5cf6;
+  --accent-2:#a78bfa;
+  --good:#34c759;
+  --warn:#ff9f0a;
+  --danger:#ff453a;
+  --hero-1:#2f6bff;
+  --hero-2:#6d3df5;
+  --radius:20px;
+}
+:root[data-theme="light"]{
+  --bg:#f2f2f7;
+  --card:#fff;
+  --card-2:#e9e9ee;
+  --sep:rgba(0,0,0,.08);
+  --text:#000;
+  --hint:#6d6d72;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);color:var(--text)}
 body{
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-  background:var(--tg-theme-secondary-bg-color,#f4f4f5);
-  color:var(--tg-theme-text-color,#000);
-  padding:12px 16px 32px;
-  max-width:480px;margin:0 auto;
+  font:16px/1.3 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  min-height:100vh;padding-bottom:calc(110px + env(safe-area-inset-bottom));
+  overflow-x:hidden;
 }
-.profile{display:flex;align-items:center;gap:14px;margin-bottom:20px;padding:4px 0}
-.profile-avatar{width:52px;height:52px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--tg-theme-hint-color,#ccc)}
-.profile-avatar img{width:100%;height:100%;object-fit:cover}
-.profile-name{font-size:18px;font-weight:600;line-height:1.2}
-.profile-id{font-size:13px;color:var(--tg-theme-hint-color,#8e8e93)}
-.card{
-  background:var(--tg-theme-section-bg-color,var(--tg-theme-bg-color,#fff));
-  border-radius:12px;overflow:hidden;margin-bottom:12px;
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg{display:block}
+
+/* Hero */
+.hero{
+  position:relative;padding:12px 16px 56px;
+  background:linear-gradient(170deg,var(--hero-1) 0%,var(--hero-2) 70%);
 }
-.card-header{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:12px 16px 8px;
-  font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;
-  color:var(--tg-theme-section-header-text-color,var(--tg-theme-hint-color,#8e8e93));
+.hero::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:48px;
+  background:linear-gradient(to bottom,transparent,var(--bg));pointer-events:none;
 }
-.card-row{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:11px 16px;min-height:44px;
-  border-top:1px solid var(--tg-theme-section-separator-color,var(--tg-theme-secondary-bg-color,#efeff0));
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;position:relative;z-index:1}
+.pill{
+  display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:17px;
+  font-size:15px;font-weight:600;white-space:nowrap;max-width:62vw;overflow:hidden;text-overflow:ellipsis;
 }
-.card-row:first-of-type{border-top:none}
-.card-row-label{font-size:15px}
-.card-row-hint{font-size:13px;color:var(--tg-theme-hint-color,#8e8e93)}
-.card-row-value{
-  font-size:15px;color:var(--tg-theme-hint-color,#8e8e93);
-  display:flex;align-items:center;gap:6px;
+.pill-glass{background:rgba(255,255,255,.16);color:#fff;backdrop-filter:blur(10px)}
+.pill-accent{background:linear-gradient(90deg,#8b5cf6,#c026d3);color:#fff}
+.pill svg{flex:none}
+.mascot{
+  width:96px;height:96px;margin:22px auto 10px;position:relative;z-index:1;
+  filter:drop-shadow(0 8px 24px rgba(0,0,0,.25));
 }
-.card-row-action{color:var(--tg-theme-link-color,#007aff);font-size:15px;background:none;border:none;cursor:pointer;padding:4px 0}
-.card-row-action.danger{color:var(--tg-theme-destructive-text-color,#ff3b30)}
-.toggle{
-  width:44px;height:28px;border-radius:14px;background:#e9e9eb;
-  position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;
+.hello{text-align:center;font-size:28px;font-weight:800;color:#fff;position:relative;z-index:1;letter-spacing:-.3px}
+.sub{text-align:center;color:rgba(255,255,255,.75);font-size:14px;margin-top:4px;position:relative;z-index:1}
+
+/* Cards */
+.section{padding:0 16px;margin-top:22px}
+.section-title{font-size:20px;font-weight:700;margin:0 4px 2px}
+.section-desc{color:var(--hint);font-size:14px;margin:0 4px 10px}
+.card{background:var(--card);border-radius:var(--radius);overflow:hidden}
+.hero-card{margin:-30px 16px 0;position:relative;z-index:2}
+.banner + .hero-card{margin-top:14px}
+.row{
+  display:flex;align-items:center;gap:14px;min-height:56px;padding:10px 16px;width:100%;text-align:left;
+  position:relative;
 }
-.toggle.on{background:var(--tg-theme-button-color,#34c759)}
-.toggle::after{
-  content:'';position:absolute;top:2px;left:2px;
-  width:24px;height:24px;border-radius:50%;background:#fff;
-  transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.15);
+.row + .row::before{
+  content:"";position:absolute;top:0;right:16px;left:56px;height:1px;background:var(--sep);
 }
-.toggle.on::after{transform:translateX(16px)}
-.badge{
-  font-size:12px;padding:2px 8px;border-radius:10px;
-  background:var(--tg-theme-secondary-bg-color,#f4f4f5);
-  color:var(--tg-theme-hint-color,#8e8e93);
+.row.plain + .row.plain::before,.row.plain + .row::before{left:16px}
+.row:active{background:var(--card-2)}
+.row-icon{width:26px;height:26px;flex:none;display:grid;place-items:center;color:var(--text)}
+.row-body{flex:1;min-width:0}
+.row-title{display:block;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-sub{font-size:13px;color:var(--hint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-sub.good{color:var(--good)}
+.row-sub.good::before{content:"⚡ ";}
+.row-value{color:var(--hint);font-size:16px;white-space:nowrap;max-width:40%;overflow:hidden;text-overflow:ellipsis}
+.chev{color:var(--hint);flex:none}
+.row.danger .row-title{color:var(--danger)}
+.row.link .row-title{color:var(--accent-2);font-weight:600}
+.add{
+  width:32px;height:32px;flex:none;display:grid;place-items:center;color:var(--text);opacity:.9;
 }
-.chevron{color:var(--tg-theme-hint-color,#c7c7cc);font-size:14px}
-.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
-.action-btn{
-  display:flex;align-items:center;justify-content:center;gap:6px;
-  padding:14px 8px;font-size:15px;
-  background:none;border:none;color:var(--tg-theme-link-color,#007aff);
-  cursor:pointer;border-top:1px solid var(--tg-theme-section-separator-color,#efeff0);
+.chip{
+  display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;margin-left:6px;
+  background:rgba(139,92,246,.18);color:var(--accent-2);vertical-align:1px;
 }
-.action-btn:first-child,.action-btn:nth-child(2){border-top:none}
-.action-btn:nth-child(odd){border-right:1px solid var(--tg-theme-section-separator-color,#efeff0)}
-#status{text-align:center;padding:6px 0;font-size:13px;color:var(--tg-theme-hint-color,#8e8e93)}
+.chip.off{background:rgba(142,142,147,.18);color:var(--hint)}
+.chip.ok{background:rgba(52,199,89,.16);color:var(--good)}
+.meta{color:var(--hint);font-size:13px;display:flex;align-items:center;gap:4px;margin-top:2px}
+
+/* Grid of quick actions */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.tile{
+  background:var(--card);border-radius:18px;padding:14px;min-height:92px;text-align:left;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+.tile:active{background:var(--card-2)}
+.tile-emoji{font-size:24px}
+.tile-title{font-weight:600;font-size:16px}
+.tile-sub{color:var(--hint);font-size:12px;margin-top:2px}
+
+/* Tab bar */
+.tabbar{
+  position:fixed;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));
+  display:flex;gap:4px;padding:6px;border-radius:30px;z-index:10;
+  background:rgba(30,30,34,.82);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,.08);box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+:root[data-theme="light"] .tabbar{background:rgba(255,255,255,.85);border-color:rgba(0,0,0,.06)}
+.tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0;border-radius:24px;
+  font-size:11px;font-weight:600;color:var(--text);opacity:.9;
+}
+.tab.active{background:rgba(255,255,255,.1);color:var(--accent-2);opacity:1}
+:root[data-theme="light"] .tab.active{background:rgba(0,0,0,.06)}
+.tab svg{width:26px;height:26px}
+
+.page{display:none}
+.page.active{display:block;animation:fade .18s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.page-head{padding:22px 20px 4px;font-size:30px;font-weight:800;letter-spacing:-.4px}
+
+/* Sheet */
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+.backdrop.open{opacity:1;pointer-events:auto}
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--bg);border-radius:22px 22px 0 0;
+  padding:8px 16px calc(20px + env(safe-area-inset-bottom));transform:translateY(105%);transition:transform .25s ease;
+  max-height:80vh;overflow:auto;
+}
+.sheet.open{transform:none}
+.sheet-grip{width:36px;height:5px;border-radius:3px;background:var(--card-2);margin:4px auto 12px}
+.sheet-title{font-size:18px;font-weight:700;margin:0 4px 12px}
+.check{color:var(--accent-2);font-weight:700}
+
+.toast{
+  position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translate(-50%,20px);
+  background:rgba(40,40,44,.95);color:#fff;padding:10px 16px;border-radius:14px;font-size:14px;
+  opacity:0;transition:all .2s;z-index:30;max-width:86vw;text-align:center;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.banner{
+  margin:14px 16px 0;padding:12px 14px;border-radius:16px;background:rgba(255,159,10,.14);color:var(--warn);font-size:14px;
+}
+.empty{color:var(--hint);font-size:14px;padding:14px 16px}
+.switch{width:51px;height:31px;border-radius:16px;background:var(--card-2);position:relative;flex:none;transition:background .2s}
+.switch span{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25);transition:transform .2s}
+.switch.on{background:var(--good)}
+.switch.on span{transform:translateX(20px)}
+.badge{font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:2px;background:rgba(139,92,246,.18);color:var(--accent-2)}
+.time-box{display:flex;gap:10px;padding:14px 16px;align-items:center}
+.time-box input{flex:1;min-width:0;font:600 22px/1 inherit;font-family:inherit;color:var(--text);background:var(--card-2);border:0;border-radius:12px;padding:10px 12px;color-scheme:inherit}
+.btn{background:var(--accent);color:#fff;font-weight:600;border-radius:12px;padding:12px 18px}
+.avatar{width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:18px;color:#fff;background:linear-gradient(135deg,var(--hero-1),var(--hero-2))}
+.account{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.account .row-title{font-weight:600}
+.note{color:var(--hint);font-size:13px;margin:8px 4px 0}
+.foot{color:var(--hint);font-size:12px;text-align:center;margin:22px 0 0}
 </style>
 </head>
 <body>
-<div id="status">connecting…</div>
 
-<!-- Profile -->
-<div class="profile">
-  <div class="profile-avatar"><img id="avatar" src="" alt=""></div>
-  <div>
-    <div class="profile-name" id="greeting">Hearthkeeper</div>
-    <div class="profile-id" id="user-id"></div>
-  </div>
-</div>
-
-<!-- Quick actions -->
-<div class="card">
-  <div class="card-header">Quick actions</div>
-  <div class="action-grid">
-    <button class="action-btn" onclick="sendCmd('/brief')">📅 Briefing</button>
-    <button class="action-btn" onclick="sendCmd('/shop')">🛒 Shopping</button>
-    <button class="action-btn" onclick="sendCmd('/mail')">✉️ Mail</button>
-    <button class="action-btn" onclick="sendCmd('/new')">🔄 Reset</button>
-  </div>
-</div>
-
-<!-- Telegram -->
-<div class="card">
-  <div class="card-header">Telegram</div>
-  <div class="card-row">
-    <span class="card-row-label">Bot status</span>
-    <div class="card-row-value"><span class="badge" style="background:#30d158;color:#fff">Connected</span></div>
-  </div>
-  <div class="card-row">
-    <span class="card-row-label">Bot</span>
-    <div class="card-row-value">
-      <span id="bot-username">@hearth_bot</span>
-      <button class="card-row-action" onclick="sendCmd('/help')">Help</button>
+<!-- ============ Home ============ -->
+<main class="page active" id="page-home">
+  <header class="hero">
+    <div class="topbar">
+      <button class="pill pill-glass" id="agent-pill" onclick="openAgents()">
+        <span id="agent-pill-name">—</span>
+        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 4.5 6 8l3.5-3.5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="pill pill-accent" onclick="backToChat()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4V6a2 2 0 0 1 2-2Z"/></svg>
+        <span data-i18n="to_chat"></span>
+      </button>
     </div>
-  </div>
-</div>
+    <svg class="mascot" viewBox="0 0 100 100" aria-hidden="true">
+      <defs>
+        <linearGradient id="roof" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#e6e2ff"/></linearGradient>
+      </defs>
+      <path d="M50 10 88 42v44a6 6 0 0 1-6 6H18a6 6 0 0 1-6-6V42Z" fill="url(#roof)"/>
+      <path d="M50 46c7 7 10 12 10 18a10 10 0 0 1-20 0c0-4 2-7 4-10 1 4 3 6 5 6-1-6-1-9 1-14Z" fill="#ff8a3d"/>
+      <circle cx="40" cy="38" r="4" fill="#1d1b2e"/><circle cx="60" cy="38" r="4" fill="#1d1b2e"/>
+    </svg>
+    <h1 class="hello" id="hello"></h1>
+    <p class="sub" id="hello-sub"></p>
+  </header>
 
-<!-- Chat settings -->
-<div class="card">
-  <div class="card-header">Chat settings</div>
-  <div class="card-row">
-    <div><div class="card-row-label">Voice replies</div><div class="card-row-hint">Bot speaks the answer</div></div>
-    <div class="toggle" id="voice-toggle" onclick="toggleVoice()"></div>
-  </div>
-  <div class="card-row">
-    <div><div class="card-row-label">Agent</div><div class="card-row-hint" id="current-agent">Pipeline default</div></div>
-    <button class="card-row-action" onclick="sendCmd('/model')">Change</button>
-  </div>
-  <div class="card-row">
-    <div><div class="card-row-label">Quiet hours</div><div class="card-row-hint" id="quiet-range">23:00 – 07:00</div></div>
-    <span class="chevron">›</span>
-  </div>
-</div>
+  <div id="preview-banner" class="banner" hidden data-i18n="preview"></div>
 
-<!-- Briefing -->
-<div class="card">
-  <div class="card-header">Briefing</div>
-  <div class="card-row">
-    <div><div class="card-row-label">Weather</div><div class="card-row-hint" id="weather-source">Not set</div></div>
-    <span class="badge" id="weather-status">—</span>
-  </div>
-  <div class="card-row">
-    <div><div class="card-row-label">Calendar</div><div class="card-row-hint" id="calendar-count">0 calendars</div></div>
-    <span class="badge" id="calendar-status">—</span>
-  </div>
-  <div class="card-row">
-    <div><div class="card-row-label">Mail</div><div class="card-row-hint" id="mail-count">0 sensors</div></div>
-    <span class="badge" id="mail-status">—</span>
-  </div>
-  <div class="card-row">
-    <div><div class="card-row-label">Home status</div></div>
-    <div class="toggle on" id="home-toggle" onclick="toggleHome()"></div>
-  </div>
-</div>
+  <div class="card hero-card" id="highlights"></div>
 
-<!-- Account -->
-<div class="card">
-  <div class="card-header">Account</div>
-  <div class="card-row">
-    <span class="card-row-label">Language</span>
-    <div class="card-row-value"><span id="language">English</span><span class="chevron" style="margin-left:6px">›</span></div>
-  </div>
-  <div class="card-row">
-    <span class="card-row-label">Version</span>
-    <div class="card-row-value"><span class="badge" id="version">0.1.0</span></div>
-  </div>
-  <div class="card-row">
-    <span class="card-row-label">Diagnostics</span>
-    <button class="card-row-action danger">Download</button>
-  </div>
+  <section class="section">
+    <h2 class="section-title" data-i18n="quick"></h2>
+    <p class="section-desc" data-i18n="quick_desc"></p>
+    <div class="grid" id="quick"></div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title" data-i18n="reminders"></h2>
+    <p class="section-desc" data-i18n="reminders_desc"></p>
+    <div class="card" id="reminders"></div>
+  </section>
+</main>
+
+<!-- ============ Skills ============ -->
+<main class="page" id="page-skills">
+  <h1 class="page-head" data-i18n="tab_skills"></h1>
+  <section class="section" style="margin-top:8px">
+    <p class="section-desc" data-i18n="skills_desc"></p>
+    <div class="card" id="skills"></div>
+  </section>
+</main>
+
+<!-- ============ Home state ============ -->
+<main class="page" id="page-house">
+  <h1 class="page-head" data-i18n="tab_house"></h1>
+  <section class="section" style="margin-top:8px">
+    <h2 class="section-title" data-i18n="sources"></h2>
+    <p class="section-desc" data-i18n="sources_desc"></p>
+    <div class="card" id="sources"></div>
+  </section>
+  <section class="section">
+    <h2 class="section-title" data-i18n="schedule"></h2>
+    <p class="section-desc" data-i18n="schedule_desc"></p>
+    <div class="card" id="schedule"></div>
+  </section>
+</main>
+
+<!-- ============ Settings ============ -->
+<main class="page" id="page-settings">
+  <h1 class="page-head" data-i18n="tab_settings"></h1>
+  <section class="section" style="margin-top:8px">
+    <div class="card" id="settings-account"></div>
+    <p class="note" data-i18n="account_note"></p>
+  </section>
+  <section class="section">
+    <h2 class="section-title" data-i18n="chat"></h2>
+    <div class="card" id="settings-chat"></div>
+  </section>
+  <section class="section">
+    <h2 class="section-title" data-i18n="my_brief"></h2>
+    <p class="section-desc" data-i18n="my_brief_desc"></p>
+    <div class="card" id="settings-brief"></div>
+  </section>
+  <section class="section">
+    <h2 class="section-title" data-i18n="my_quiet"></h2>
+    <p class="section-desc" data-i18n="my_quiet_desc"></p>
+    <div class="card" id="settings-quiet"></div>
+  </section>
+  <section class="section">
+    <h2 class="section-title" data-i18n="shared"></h2>
+    <p class="section-desc" data-i18n="shared_desc"></p>
+    <div class="card" id="settings-voice"></div>
+  </section>
+  <section class="section">
+    <h2 class="section-title" data-i18n="app"></h2>
+    <div class="card" id="settings-app"></div>
+  </section>
+  <p class="foot">Hearthkeeper</p>
+</main>
+
+<!-- Tab bar -->
+<nav class="tabbar" id="tabbar">
+  <button class="tab active" data-tab="home">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 3 10.4V20a1 1 0 0 0 1 1h5.5v-6h5v6H20a1 1 0 0 0 1-1v-9.6Z"/></svg>
+    <span data-i18n="tab_home"></span>
+  </button>
+  <button class="tab" data-tab="skills">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 20 10-10M14 4v3M14 13v3M10 8H7M21 8h-3M17 5l-1.5 1.5M17 11l-1.5-1.5"/></svg>
+    <span data-i18n="tab_skills"></span>
+  </button>
+  <button class="tab" data-tab="house">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3Z"/></svg>
+    <span data-i18n="tab_house"></span>
+  </button>
+  <button class="tab" data-tab="settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+    <span data-i18n="tab_settings"></span>
+  </button>
+</nav>
+
+<div class="backdrop" id="backdrop" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true">
+  <div class="sheet-grip"></div>
+  <h3 class="sheet-title" id="sheet-title"></h3>
+  <div class="card" id="sheet-body"></div>
 </div>
+<div class="toast" id="toast"></div>
 
 <script>
-(function(){
-  const tg = window.Telegram.WebApp;
-  tg.ready();
-  tg.expand();
+(function () {
+  "use strict";
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const initData = (tg && tg.initData) || "";
+  const preview = !initData;
+  const API = location.pathname.replace(/\/$/, "") + "/api";
 
-  const user = tg.initDataUnsafe?.user;
-  if (user) {
-    document.getElementById('greeting').textContent = user.first_name || 'Hearthkeeper';
-    document.getElementById('user-id').textContent = 'tg id ' + (user.id || '');
-    const img = document.getElementById('avatar');
-    if (user.photo_url) { img.src = user.photo_url; }
+  // ---------- i18n ----------
+  const I18N = {
+    ru: {
+      to_chat: "Чат", hello: "Привет, {name}!", hello_anon: "Привет!",
+      hello_sub: "Hearthkeeper — ваш дом в Telegram",
+      preview: "Предпросмотр с примером данных. Откройте приложение из Telegram командой /web.",
+      quick: "Быстрые действия", quick_desc: "Ответ придёт в чат с ботом",
+      reminders: "Напоминания", reminders_desc: "Ставятся фразой «напомни через 20 минут…» или /remind",
+      no_reminders: "Активных напоминаний нет", cancel_all: "Отменить все",
+      tab_home: "Главная", tab_skills: "Навыки", tab_house: "Дом", tab_settings: "Настройки",
+      skills_desc: "Фразы, на которые Hearthkeeper отвечает сам — даже с локальной моделью",
+      sources: "Источники сводки", sources_desc: "Сущности Home Assistant, из которых собирается сводка",
+      schedule: "Расписание", schedule_desc: "Когда приходит сводка и когда бот молчит",
+      chat: "Чат", voice: "Голос", app: "Приложение",
+      agent: "Агент", agent_default: "Как в пайплайне", reply_mode: "Режим ответа",
+      new_conv: "Новый разговор", new_conv_done: "Начат новый разговор",
+      pipeline: "Пайплайн Assist", stt: "Распознавание речи", tts: "Синтез речи",
+      on: "Включено", off: "Выключено", configured: "Настроено", not_set: "Не задано",
+      language: "Язык", bot: "Бот", help: "Справка по командам",
+      mode_text: "Текст", mode_voice: "Голос", mode_both: "Текст и голос",
+      brief_daily: "Утренняя сводка", brief_at: "каждый день в {time}", brief_off: "выключена — включите в «Настройках»",
+      quiet: "Тихие часы", quiet_sub: "напоминания приходят без звука",
+      voice_replies: "Голосовые ответы", voice_on_sub: "бот отвечает голосом", voice_off_sub: "сейчас — только текст",
+      rem_count: "Напоминания", rem_active: "активных: {n}",
+      weather: "Погода", calendars: "Календари", todo: "Список покупок", mail: "Почта", home_state: "Состояние дома",
+      cal_n: "{n} шт.",
+      q_brief: "Сводка", q_brief_sub: "погода, календарь, дом",
+      q_shop: "Покупки", q_shop_sub: "список из todo",
+      q_mail: "Почта", q_mail_sub: "непрочитанные письма",
+      q_remind: "Напоминания", q_remind_sub: "список в чате",
+      s_brief: "Сводка дня", s_brief_ph: "«сводка», «брифинг»",
+      s_cal: "Календарь", s_cal_ph: "«что у меня сегодня», «планы на завтра»",
+      s_home: "Статус дома", s_home_ph: "«что дома», «статус дома»",
+      s_shop: "Покупки", s_shop_ph: "/shop — отметить купленное кнопкой",
+      s_mail: "Почта", s_mail_ph: "/mail — отправители и темы",
+      s_remind: "Напоминания", s_remind_ph: "«напомни через 20 минут…»",
+      s_voice: "Голосовые сообщения", s_voice_ph: "надиктуйте вопрос в чат",
+      cat_prod: "Продуктивность", cat_home: "Дом", cat_voice: "Голос",
+      sent: "Готово — ответ в чате", error: "Не получилось. Попробуйте ещё раз",
+      no_tts: "В пайплайне нет синтеза речи", unauthorized: "Нет доступа. Откройте приложение из Telegram",
+      confirm_cancel: "Отменить все напоминания?",
+      account_note: "Настройки ниже — ваши личные. У других членов семьи свои.",
+      account_id: "ID {id}",
+      my_brief: "Моя сводка", my_brief_desc: "Когда и о чём бот рассказывает вам по утрам",
+      my_quiet: "Мои тихие часы", my_quiet_desc: "Утренняя сводка не приходит, напоминания — без звука",
+      shared: "Общие настройки", shared_desc: "Одинаковы для всех. Меняются в Home Assistant → Hearthkeeper → Настроить",
+      brief_on: "Присылать сводку", time: "Время", from: "С", to: "До",
+      quiet_on: "Тихие часы",
+      none: "Не показывать", save: "Сохранить", saved: "Сохранено",
+      pool_empty: "Администратор пока не добавил их в настройках интеграции",
+      max_voice: "Длина голосового", sec: "{n} с", keep_audio: "Хранить записи", cloud_mail: "Почта через облачный ИИ",
+      reset_prefs: "Сбросить мои настройки", reset_done: "Вернулись к общим настройкам",
+      confirm_reset: "Вернуть сводку, тихие часы и источники к общим настройкам?",
+      bad_value: "Это значение нельзя сохранить",
+      personal: "моё",
+    },
+    en: {
+      to_chat: "Chat", hello: "Hi, {name}!", hello_anon: "Hi!",
+      hello_sub: "Hearthkeeper — your home in Telegram",
+      preview: "Preview with sample data. Open the app from Telegram with /web.",
+      quick: "Quick actions", quick_desc: "The answer arrives in the bot chat",
+      reminders: "Reminders", reminders_desc: "Say “remind me in 20 minutes…” or use /remind",
+      no_reminders: "No active reminders", cancel_all: "Cancel all",
+      tab_home: "Home", tab_skills: "Skills", tab_house: "House", tab_settings: "Settings",
+      skills_desc: "Phrases Hearthkeeper answers itself — even with a local model",
+      sources: "Briefing sources", sources_desc: "Home Assistant entities the briefing is built from",
+      schedule: "Schedule", schedule_desc: "When the briefing arrives and when the bot stays quiet",
+      chat: "Chat", voice: "Voice", app: "App",
+      agent: "Agent", agent_default: "Pipeline default", reply_mode: "Reply mode",
+      new_conv: "New conversation", new_conv_done: "Started a new conversation",
+      pipeline: "Assist pipeline", stt: "Speech to text", tts: "Text to speech",
+      on: "On", off: "Off", configured: "Configured", not_set: "Not set",
+      language: "Language", bot: "Bot", help: "Command help",
+      mode_text: "Text", mode_voice: "Voice", mode_both: "Text and voice",
+      brief_daily: "Morning briefing", brief_at: "every day at {time}", brief_off: "off — turn it on in Settings",
+      quiet: "Quiet hours", quiet_sub: "reminders arrive silently",
+      voice_replies: "Voice replies", voice_on_sub: "the bot answers by voice", voice_off_sub: "text only for now",
+      rem_count: "Reminders", rem_active: "active: {n}",
+      weather: "Weather", calendars: "Calendars", todo: "Shopping list", mail: "Mail", home_state: "House state",
+      cal_n: "{n}",
+      q_brief: "Briefing", q_brief_sub: "weather, calendar, house",
+      q_shop: "Shopping", q_shop_sub: "list from todo",
+      q_mail: "Mail", q_mail_sub: "unread messages",
+      q_remind: "Reminders", q_remind_sub: "list in the chat",
+      s_brief: "Daily briefing", s_brief_ph: "“briefing”, “daily summary”",
+      s_cal: "Calendar", s_cal_ph: "“what is on today”, “tomorrow's plans”",
+      s_home: "Home status", s_home_ph: "“home status”, “anything on at home”",
+      s_shop: "Shopping", s_shop_ph: "/shop — tick items off with a tap",
+      s_mail: "Mail", s_mail_ph: "/mail — senders and subjects",
+      s_remind: "Reminders", s_remind_ph: "“remind me in 20 minutes…”",
+      s_voice: "Voice messages", s_voice_ph: "dictate a question in the chat",
+      cat_prod: "Productivity", cat_home: "Home", cat_voice: "Voice",
+      sent: "Done — see the chat", error: "Something went wrong. Try again",
+      no_tts: "The pipeline has no text-to-speech", unauthorized: "No access. Open the app from Telegram",
+      confirm_cancel: "Cancel all reminders?",
+      account_note: "The settings below are yours. Everyone in the family has their own.",
+      account_id: "ID {id}",
+      my_brief: "My briefing", my_brief_desc: "When and what the bot tells you in the morning",
+      my_quiet: "My quiet hours", my_quiet_desc: "No morning briefing, reminders arrive silently",
+      shared: "Shared settings", shared_desc: "Same for everyone. Change them in Home Assistant → Hearthkeeper → Configure",
+      brief_on: "Send the briefing", time: "Time", from: "From", to: "To",
+      quiet_on: "Quiet hours",
+      none: "Do not show", save: "Save", saved: "Saved",
+      pool_empty: "The admin has not added any in the integration options yet",
+      max_voice: "Voice message length", sec: "{n} s", keep_audio: "Keep recordings", cloud_mail: "Mail via cloud AI",
+      reset_prefs: "Reset my settings", reset_done: "Back to the shared settings",
+      confirm_reset: "Reset the briefing, quiet hours and sources to the shared settings?",
+      bad_value: "This value cannot be saved",
+      personal: "mine",
+    },
+  };
+  let lang = "ru";
+  const t = (key, vars) => {
+    let s = (I18N[lang] && I18N[lang][key]) || I18N.ru[key] || key;
+    if (vars) for (const k in vars) s = s.replace("{" + k + "}", vars[k]);
+    return s;
+  };
+
+  // ---------- icons ----------
+  const ICON = {
+    sparkle: c => `<svg width="22" height="22" viewBox="0 0 24 24"><path fill="${c}" d="M12 2c.6 4.6 2.4 7.4 7 8-4.6.6-6.4 3.4-7 8-.6-4.6-2.4-7.4-7-8 4.6-.6 6.4-3.4 7-8Z"/></svg>`,
+    chev: `<svg class="chev" width="9" height="15" viewBox="0 0 9 15"><path d="m1.5 1.5 6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    play: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5Z"/></svg>`,
+    line: d => `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`,
+  };
+  const P = {
+    agent: '<path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M6 18l2-2M16 8l2-2"/><circle cx="12" cy="12" r="3"/>',
+    mode: '<path d="M4 5h16v10H9l-5 4Z"/>',
+    refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
+    pipeline: '<path d="M4 7h10M4 12h16M4 17h7"/><circle cx="17" cy="7" r="2"/><circle cx="14" cy="17" r="2"/>',
+    mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+    speaker: '<path d="M4 10v4h4l5 4V6L8 10Z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/>',
+    bot: '<rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/>',
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/>',
+    cal: '<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+    cart: '<path d="M3 4h2l2.4 11h10.2L20 8H6.2"/><circle cx="9" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/>',
+    house: '<path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1Z"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>',
+    bell: '<path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  };
+
+  // ---------- helpers ----------
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const haptic = kind => { try { tg && tg.HapticFeedback && (kind === "ok" ? tg.HapticFeedback.notificationOccurred("success") : tg.HapticFeedback.impactOccurred("light")); } catch (e) {} };
+  let toastTimer;
+  function toast(text) {
+    const el = $("toast"); el.textContent = text; el.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
   }
-  document.getElementById('status').textContent = '';
 
-  let voiceOn = false;
-  window.toggleVoice = function(){
-    voiceOn = !voiceOn;
-    const el = document.getElementById('voice-toggle');
-    el.classList.toggle('on', voiceOn);
-    tg.sendData('/voice ' + (voiceOn ? 'on' : 'off'));
+  function row({icon, title, sub, subGood, value, chev, onClick, cls, right}) {
+    const tag = onClick ? "button" : "div";
+    const id = onClick ? register(onClick) : null;
+    return `<${tag} class="row ${cls || ""} ${icon ? "" : "plain"}" ${id ? `data-act="${id}"` : ""}>
+      ${icon ? `<span class="row-icon">${icon}</span>` : ""}
+      <span class="row-body"><span class="row-title">${title}</span>${sub ? `<span class="row-sub ${subGood ? "good" : ""}" style="display:block">${sub}</span>` : ""}</span>
+      ${value != null ? `<span class="row-value">${value}</span>` : ""}
+      ${right || ""}${chev ? ICON.chev : ""}
+    </${tag}>`;
+  }
+  let actions = {}, actionSeq = 0;
+  function register(fn) { const id = "a" + (++actionSeq); actions[id] = fn; return id; }
+  document.addEventListener("click", e => {
+    const el = e.target.closest("[data-act]");
+    if (el && actions[el.dataset.act]) { haptic(); actions[el.dataset.act](e); }
+  });
+
+  // ---------- API ----------
+  async function api(action, extra) {
+    if (preview) return demoApi(action, extra);
+    const res = await fetch(API, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(Object.assign({init_data: initData, action}, extra || {})),
+    });
+    const data = await res.json().catch(() => ({ok: false, error: "error"}));
+    if (!res.ok || !data.ok) throw new Error(data.error || "error");
+    return data;
+  }
+  function fail(err) {
+    const code = err && err.message;
+    toast(code === "no_tts" ? t("no_tts") : code === "unauthorized" ? t("unauthorized") : code === "bad_value" ? t("bad_value") : t("error"));
+    try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred("error"); } catch (e) {}
+  }
+
+  // Sample data for opening the page outside Telegram.
+  const DEMO = {
+    first_name: "", language: (navigator.language || "ru").slice(0, 2) === "en" ? "en" : "ru",
+    bot_username: "hearth_bot", reply_mode: "text", reply_modes: ["text", "voice", "both"],
+    tts: true, stt: true, pipeline: "Home Assistant",
+    agent: {id: "conversation.home_assistant", name: "Home Assistant", overridden: false, pipeline_name: "Home Assistant"},
+    agents: [{id: "conversation.home_assistant", name: "Home Assistant"}, {id: "conversation.ollama", name: "Ollama"}],
+    personal: false,
+    brief: {enabled: true, time: "08:00", quiet_start: "23:00", quiet_end: "07:00", personal_brief: false, personal_quiet: false},
+    sources: {weather: "Forecast Home", weather_id: "weather.home", calendars: ["Family", "Work"], calendar_ids: ["calendar.family", "calendar.work"],
+              todo: "Shopping List", mail: true, mail_ids: ["sensor.inbox"], home: true, personal: false},
+    choices: {weather: [{id: "weather.home", name: "Forecast Home"}],
+              calendars: [{id: "calendar.family", name: "Family"}, {id: "calendar.work", name: "Work"}],
+              mail: [{id: "sensor.inbox", name: "Inbox"}]},
+    shared: {max_voice_seconds: 120, keep_audio: false, allow_cloud_for_mail: false},
+    account: {id: 0, name: "", username: null},
+    reminders: [{when: "20.11 18:30", text: "call the plumber"}],
   };
+  const nameOf = (list, id) => (list.find(x => x.id === id) || {}).name || id;
+  function demoApi(action, extra) {
+    if (action === "set_reply_mode") DEMO.reply_mode = extra.mode;
+    if (action === "set_agent") {
+      const a = DEMO.agents.find(x => x.id === extra.agent_id);
+      DEMO.agent = a ? {id: a.id, name: a.name, overridden: true, pipeline_name: "Home Assistant"}
+                     : {id: "conversation.home_assistant", name: "Home Assistant", overridden: false, pipeline_name: "Home Assistant"};
+    }
+    if (action === "cancel_reminders") DEMO.reminders = [];
+    if (action === "set_prefs") {
+      const p = extra.prefs, b = DEMO.brief, src = DEMO.sources, ch = DEMO.choices;
+      if (p.reset) { b.personal_brief = b.personal_quiet = src.personal = false; }
+      if ("brief_enabled" in p) { b.enabled = p.brief_enabled; b.personal_brief = true; }
+      if ("brief_time" in p) { b.time = p.brief_time; b.personal_brief = true; }
+      if ("quiet" in p) { b.quiet_start = p.quiet[0] || ""; b.quiet_end = p.quiet[1] || ""; b.personal_quiet = true; }
+      if ("weather" in p) { src.weather_id = p.weather; src.weather = p.weather ? nameOf(ch.weather, p.weather) : null; src.personal = true; }
+      if ("calendars" in p) { src.calendar_ids = p.calendars; src.calendars = p.calendars.map(id => nameOf(ch.calendars, id)); src.personal = true; }
+      if ("mail" in p) { src.mail_ids = p.mail; src.mail = p.mail.length > 0; src.personal = true; }
+      if ("home" in p) { src.home = p.home; src.personal = true; }
+      DEMO.personal = b.personal_brief || b.personal_quiet || src.personal;
+    }
+    return Promise.resolve({ok: true, state: JSON.parse(JSON.stringify(DEMO))});
+  }
 
-  let homeOn = true;
-  window.toggleHome = function(){
-    homeOn = !homeOn;
-    document.getElementById('home-toggle').classList.toggle('on', homeOn);
+  // ---------- render ----------
+  let state = null;
+  const modeName = m => t("mode_" + m);
+
+  function render() {
+    actions = {}; actionSeq = 0;
+    lang = I18N[state.language] ? state.language : "ru";
+    document.documentElement.lang = lang;
+    document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+    $("preview-banner").hidden = !preview;
+
+    $("hello").textContent = state.first_name ? t("hello", {name: state.first_name}) : t("hello_anon");
+    $("hello-sub").textContent = t("hello_sub");
+    $("agent-pill-name").textContent = state.agent.name || t("agent_default");
+
+    const voiceOn = state.reply_mode !== "text";
+    $("highlights").innerHTML =
+      row({icon: ICON.sparkle("#5ac8fa"), title: esc(t("brief_daily")),
+           sub: esc(state.brief.enabled ? t("brief_at", {time: state.brief.time}) : t("brief_off")),
+           subGood: state.brief.enabled, chev: true, onClick: () => runCommand("brief")}) +
+      row({icon: ICON.sparkle("#ffcc00"), title: esc(t("voice_replies")),
+           sub: esc(voiceOn ? t("voice_on_sub") : t("voice_off_sub")), subGood: voiceOn,
+           chev: true, onClick: openModes}) +
+      row({icon: ICON.sparkle("#bf5af2"), title: esc(t("rem_count")),
+           sub: esc(t("rem_active", {n: state.reminders.length})), subGood: state.reminders.length > 0,
+           chev: true, onClick: () => runCommand("remind", ["list"])});
+
+    const tiles = [
+      ["📅", "q_brief", "q_brief_sub", () => runCommand("brief")],
+      ["🛒", "q_shop", "q_shop_sub", () => runCommand("shop")],
+      ["✉️", "q_mail", "q_mail_sub", () => runCommand("mail")],
+      ["⏰", "q_remind", "q_remind_sub", () => runCommand("remind", ["list"])],
+    ];
+    $("quick").innerHTML = tiles.map(([e, k, s, fn]) =>
+      `<button class="tile" data-act="${register(fn)}"><span class="tile-emoji">${e}</span>
+        <span><span class="tile-title" style="display:block">${esc(t(k))}</span><span class="tile-sub" style="display:block">${esc(t(s))}</span></span></button>`).join("");
+
+    $("reminders").innerHTML = state.reminders.length
+      ? state.reminders.map(r => row({icon: ICON.line(P.bell), title: esc(r.text), sub: esc(r.when)})).join("") +
+        row({title: esc(t("cancel_all")), cls: "danger", onClick: cancelReminders})
+      : `<div class="empty">${esc(t("no_reminders"))}</div>`;
+
+    // Skills
+    const src = state.sources;
+    const skills = [
+      ["s_brief", "s_brief_ph", "cat_prod", src.weather || src.calendars.length || src.home, () => runCommand("brief")],
+      ["s_cal", "s_cal_ph", "cat_prod", src.calendars.length > 0, null],
+      ["s_home", "s_home_ph", "cat_home", src.home, null],
+      ["s_shop", "s_shop_ph", "cat_home", !!src.todo, () => runCommand("shop")],
+      ["s_mail", "s_mail_ph", "cat_prod", src.mail, () => runCommand("mail")],
+      ["s_remind", "s_remind_ph", "cat_prod", true, () => runCommand("remind", ["list"])],
+      ["s_voice", "s_voice_ph", "cat_voice", state.stt, null],
+    ];
+    $("skills").innerHTML = skills.map(([k, ph, cat, ok, fn]) => {
+      const id = fn ? register(fn) : null;
+      return `<div class="row plain"><span class="row-body">
+          <span class="row-title">${esc(t(k))}<span class="chip ${ok ? "" : "off"}">${esc(ok ? t(cat) : t("not_set"))}</span></span>
+          <span class="row-sub" style="display:block">${esc(t(ph))}</span></span>
+          ${id ? `<button class="add" aria-label="run" data-act="${id}">${ICON.play}</button>` : ""}</div>`;
+    }).join("");
+
+    // House
+    const val = v => v ? `<span class="chip ok">${esc(t("configured"))}</span>` : `<span class="chip off">${esc(t("not_set"))}</span>`;
+    $("sources").innerHTML =
+      row({icon: ICON.line(P.sun), title: esc(t("weather")), sub: esc(src.weather || ""), right: val(src.weather)}) +
+      row({icon: ICON.line(P.cal), title: esc(t("calendars")), sub: esc(src.calendars.join(", ")),
+           right: src.calendars.length ? `<span class="chip ok">${esc(t("cal_n", {n: src.calendars.length}))}</span>` : val(false)}) +
+      row({icon: ICON.line(P.cart), title: esc(t("todo")), sub: esc(src.todo || ""), right: val(src.todo)}) +
+      row({icon: ICON.line(P.mail), title: esc(t("mail")), right: val(src.mail)}) +
+      row({icon: ICON.line(P.house), title: esc(t("home_state")), right: val(src.home)});
+    $("schedule").innerHTML =
+      row({icon: ICON.line(P.clock), title: esc(t("brief_daily")), value: esc(state.brief.enabled ? state.brief.time : t("off"))}) +
+      row({icon: ICON.line(P.moon), title: esc(t("quiet")), sub: esc(t("quiet_sub")),
+           value: esc(state.brief.quiet_start && state.brief.quiet_end ? state.brief.quiet_start + "–" + state.brief.quiet_end : t("off"))});
+
+    // Settings
+    const acc = state.account || {};
+    const accName = acc.name || state.first_name || "—";
+    $("settings-account").innerHTML = `<div class="account"><span class="avatar">${esc(accName.trim().charAt(0).toUpperCase() || "?")}</span>
+      <span class="row-body"><span class="row-title">${esc(accName)}</span>
+      <span class="row-sub" style="display:block">${esc([acc.username ? "@" + acc.username : "", acc.id ? t("account_id", {id: acc.id}) : ""].filter(Boolean).join(" · "))}</span></span></div>`;
+
+    const b = state.brief, mine = on => on ? `<span class="badge">${esc(t("personal"))}</span>` : "";
+    const ids = src.calendar_ids || [], mailIds = src.mail_ids || [];
+    $("settings-brief").innerHTML =
+      row({icon: ICON.line(P.bell), title: esc(t("brief_on")) + mine(b.personal_brief), right: sw(b.enabled),
+           onClick: () => setPrefs({brief_enabled: !b.enabled})}) +
+      row({icon: ICON.line(P.clock), title: esc(t("time")), value: esc(b.time || "—"), chev: true,
+           onClick: () => openTime(t("time"), b.time, v => setPrefs({brief_time: v}))}) +
+      row({icon: ICON.line(P.sun), title: esc(t("weather")) + mine(src.personal), value: esc(src.weather || t("none")), chev: true,
+           onClick: openWeather}) +
+      row({icon: ICON.line(P.cal), title: esc(t("calendars")), value: esc(ids.length ? t("cal_n", {n: ids.length}) : t("none")), chev: true,
+           onClick: () => openMulti("calendars", t("calendars"), state.choices.calendars, ids)}) +
+      row({icon: ICON.line(P.mail), title: esc(t("mail")), value: esc(mailIds.length ? t("cal_n", {n: mailIds.length}) : t("none")), chev: true,
+           onClick: () => openMulti("mail", t("mail"), state.choices.mail, mailIds)}) +
+      row({icon: ICON.line(P.house), title: esc(t("home_state")), right: sw(src.home),
+           onClick: () => setPrefs({home: !src.home})});
+
+    const quietOn = !!(b.quiet_start && b.quiet_end);
+    $("settings-quiet").innerHTML =
+      row({icon: ICON.line(P.moon), title: esc(t("quiet_on")) + mine(b.personal_quiet), right: sw(quietOn),
+           onClick: () => setPrefs({quiet: quietOn ? [] : ["23:00", "07:00"]})}) +
+      (quietOn
+        ? row({icon: ICON.line(P.clock), title: esc(t("from")), value: esc(b.quiet_start), chev: true,
+               onClick: () => openTime(t("from"), b.quiet_start, v => setPrefs({quiet: [v, b.quiet_end]}))}) +
+          row({icon: ICON.line(P.clock), title: esc(t("to")), value: esc(b.quiet_end), chev: true,
+               onClick: () => openTime(t("to"), b.quiet_end, v => setPrefs({quiet: [b.quiet_start, v]}))})
+        : "");
+
+    $("settings-chat").innerHTML =
+      row({icon: ICON.line(P.agent), title: esc(t("agent")), value: esc(state.agent.overridden ? state.agent.name : t("agent_default")), chev: true, onClick: openAgents}) +
+      row({icon: ICON.line(P.mode), title: esc(t("reply_mode")), value: esc(modeName(state.reply_mode)), chev: true, onClick: openModes}) +
+      row({icon: ICON.line(P.refresh), title: esc(t("new_conv")), chev: true, onClick: newConversation});
+    $("settings-voice").innerHTML =
+      row({icon: ICON.line(P.pipeline), title: esc(t("pipeline")), value: esc(state.pipeline || t("not_set"))}) +
+      row({icon: ICON.line(P.mic), title: esc(t("stt")), value: esc(state.stt ? t("on") : t("off"))}) +
+      row({icon: ICON.line(P.speaker), title: esc(t("tts")), value: esc(state.tts ? t("on") : t("off"))}) +
+      row({icon: ICON.line(P.mic), title: esc(t("max_voice")), value: esc(t("sec", {n: state.shared.max_voice_seconds}))}) +
+      row({icon: ICON.line(P.mail), title: esc(t("cloud_mail")), value: esc(state.shared.allow_cloud_for_mail ? t("on") : t("off"))});
+    $("settings-app").innerHTML =
+      row({icon: ICON.line(P.globe), title: esc(t("language")), value: lang === "ru" ? "Русский" : "English"}) +
+      row({icon: ICON.line(P.bot), title: esc(t("bot")), value: esc(state.bot_username ? "@" + state.bot_username : "—")}) +
+      row({icon: ICON.line(P.help), title: esc(t("help")), chev: true, onClick: () => runCommand("help")}) +
+      (state.personal ? row({title: esc(t("reset_prefs")), cls: "danger", onClick: resetPrefs}) : "");
+  }
+
+  // ---------- actions ----------
+  async function apply(promise) {
+    try { const data = await promise; if (data.state) { state = data.state; render(); } haptic("ok"); return true; }
+    catch (err) { fail(err); return false; }
+  }
+  async function runCommand(command, args) {
+    try { await api("command", {command, args: args || []}); haptic("ok"); toast(t("sent")); }
+    catch (err) { fail(err); }
+  }
+  async function newConversation() { if (await apply(api("new_conversation"))) toast(t("new_conv_done")); }
+  function cancelReminders() {
+    const go = () => apply(api("cancel_reminders"));
+    if (tg && tg.showConfirm && !preview) tg.showConfirm(t("confirm_cancel"), ok => ok && go());
+    else go();
+  }
+
+  const sw = on => `<span class="switch ${on ? "on" : ""}"><span></span></span>`;
+  async function setPrefs(prefs) { if (await apply(api("set_prefs", {prefs}))) toast(t("saved")); }
+  function resetPrefs() {
+    const go = async () => { if (await apply(api("set_prefs", {prefs: {reset: true}}))) toast(t("reset_done")); };
+    if (tg && tg.showConfirm && !preview) tg.showConfirm(t("confirm_reset"), ok => ok && go());
+    else go();
+  }
+  function openTime(title, value, onSave) {
+    const id = register(() => { const v = $("time-input").value; closeSheet(); if (v && v !== value) onSave(v.slice(0, 5)); });
+    openSheet(title, `<div class="time-box"><input type="time" id="time-input" value="${esc(value || "")}">
+      <button class="btn" data-act="${id}">${esc(t("save"))}</button></div>`);
+  }
+  function openWeather() {
+    const items = [{id: null, name: t("none")}].concat(state.choices.weather);
+    openSheet(t("weather"), items.map(w => row({
+      title: esc(w.name),
+      right: w.id === (state.sources.weather_id || null) ? '<span class="check">✓</span>' : "",
+      onClick: async () => { closeSheet(); await setPrefs({weather: w.id}); },
+    })).join(""));
+  }
+  function openMulti(key, title, choices, selected) {
+    if (!choices.length) { openSheet(title, `<div class="empty">${esc(t("pool_empty"))}</div>`); return; }
+    openSheet(title, choices.map(c => row({
+      title: esc(c.name),
+      right: selected.includes(c.id) ? '<span class="check">✓</span>' : "",
+      onClick: async () => {
+        const next = selected.includes(c.id) ? selected.filter(x => x !== c.id) : selected.concat(c.id);
+        if (await apply(api("set_prefs", {prefs: {[key]: next}}))) {
+          openMulti(key, title, choices, key === "mail" ? state.sources.mail_ids : state.sources.calendar_ids);
+        }
+      },
+    })).join(""));
+  }
+
+  function openSheet(title, html) {
+    $("sheet-title").textContent = title; $("sheet-body").innerHTML = html;
+    $("backdrop").classList.add("open"); $("sheet").classList.add("open");
+  }
+  function closeSheet() { $("backdrop").classList.remove("open"); $("sheet").classList.remove("open"); }
+  window.closeSheet = closeSheet;
+
+  function openModes() {
+    const html = state.reply_modes.map(m => row({
+      title: esc(modeName(m)),
+      right: m === state.reply_mode ? '<span class="check">✓</span>' : "",
+      onClick: async () => { closeSheet(); if (m !== state.reply_mode) await apply(api("set_reply_mode", {mode: m})); },
+    })).join("");
+    openSheet(t("reply_mode"), html);
+  }
+  window.openAgents = function () {
+    if (!state) return;
+    const items = [{id: null, name: t("agent_default") + (state.agent.pipeline_name ? " · " + state.agent.pipeline_name : "")}]
+      .concat(state.agents);
+    const html = items.map(a => row({
+      title: esc(a.name),
+      right: (a.id === null ? !state.agent.overridden : state.agent.overridden && a.id === state.agent.id) ? '<span class="check">✓</span>' : "",
+      onClick: async () => { closeSheet(); await apply(api("set_agent", {agent_id: a.id})); },
+    })).join("");
+    openSheet(t("agent"), html);
   };
+  window.backToChat = function () { if (tg && !preview) tg.close(); };
 
-  window.sendCmd = function(cmd){ tg.sendData(cmd); };
+  // ---------- tabs ----------
+  $("tabbar").addEventListener("click", e => {
+    const btn = e.target.closest(".tab"); if (!btn) return;
+    haptic();
+    document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b === btn));
+    document.querySelectorAll(".page").forEach(p => p.classList.toggle("active", p.id === "page-" + btn.dataset.tab));
+    window.scrollTo(0, 0);
+  });
+
+  // ---------- theme & start ----------
+  function applyTheme() {
+    const scheme = tg && tg.colorScheme ? tg.colorScheme
+      : (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    document.documentElement.dataset.theme = scheme;
+    const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+    try { tg && tg.setHeaderColor && tg.setHeaderColor("#2f6bff"); tg && tg.setBackgroundColor && tg.setBackgroundColor(bg); } catch (e) {}
+  }
+  if (tg) { tg.ready(); tg.expand(); tg.onEvent && tg.onEvent("themeChanged", applyTheme); }
+  applyTheme();
+
+  api("state").then(data => { state = data.state; render(); }).catch(err => {
+    // Never show sample data as if it were the user's: render an empty state
+    // and say why.
+    state = {
+      first_name: (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name) || "",
+      language: DEMO.language, bot_username: null, reply_mode: "text", reply_modes: [],
+      tts: false, stt: false, pipeline: null,
+      agent: {id: null, name: null, overridden: false, pipeline_name: null}, agents: [],
+      personal: false,
+      brief: {enabled: false, time: "", quiet_start: "", quiet_end: "", personal_brief: false, personal_quiet: false},
+      sources: {weather: null, weather_id: null, calendars: [], calendar_ids: [], todo: null, mail: false, mail_ids: [], home: false, personal: false},
+      choices: {weather: [], calendars: [], mail: []},
+      shared: {max_voice_seconds: 0, keep_audio: false, allow_cloud_for_mail: false},
+      account: {id: 0, name: "", username: null}, reminders: [],
+    };
+    render();
+    const banner = $("preview-banner");
+    banner.hidden = false;
+    banner.textContent = err && err.message === "unauthorized" ? t("unauthorized") : t("error");
+  });
 })();
 </script>
 </body>

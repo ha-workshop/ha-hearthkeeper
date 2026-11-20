@@ -5,8 +5,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import (
     ConfigEntryError,
@@ -17,7 +19,7 @@ from homeassistant.helpers.event import async_track_time_change
 
 from .assist import PipelineSettings, async_get_pipeline_settings
 from .brain import Brain
-from .brief import BriefingSources, parse_brief_time
+from .brief import BriefingSources
 from .const import (
     ATTR_CHAT_ID,
     ATTR_MODE,
@@ -94,6 +96,7 @@ class HearthkeeperRuntime:
     quiet_start: str
     quiet_end: str
     stats: RuntimeStats
+    bot_token: str | None = None
 
     def handles_chat(self, chat_id: int) -> bool:
         """Return True when the chat belongs to this entry."""
@@ -137,6 +140,19 @@ async def async_setup_entry(
             "No Assist pipeline selected; Hearthkeeper will echo messages back"
         )
 
+    raw_token = telegram_entry.data.get(CONF_API_KEY)
+    bot_token = raw_token if isinstance(raw_token, str) and raw_token else None
+    quiet_start = _str_or_none(options.get(CONF_QUIET_START)) or DEFAULT_QUIET_START
+    quiet_end = _str_or_none(options.get(CONF_QUIET_END)) or DEFAULT_QUIET_END
+    brief_enabled = bool(options.get(CONF_BRIEF_ENABLED, DEFAULT_BRIEF_ENABLED))
+    brief_time = _str_or_none(options.get(CONF_BRIEF_TIME)) or DEFAULT_BRIEF_TIME
+
+    brief_chats = tuple(
+        int(cid)
+        for cid in (options.get(CONF_BRIEF_CHATS) or ())
+        if str(cid).lstrip("-").isdigit()
+    )
+
     chats = ChatStore(hass)
     await chats.async_load()
 
@@ -145,6 +161,7 @@ async def async_setup_entry(
         telegram_entry_id=telegram_entry.entry_id,
         allowed_chats=allowed_chats,
         allow_groups=bool(options.get(CONF_ALLOW_GROUPS, DEFAULT_ALLOW_GROUPS)),
+        bot_token=bot_token,
     )
     briefing = BriefingSources(
         calendars=_str_list(options.get(CONF_BRIEF_CALENDARS)),
@@ -179,6 +196,11 @@ async def async_setup_entry(
         allow_cloud_for_mail=allow_cloud_for_mail,
         keep_audio=bool(options.get(CONF_KEEP_AUDIO, DEFAULT_KEEP_AUDIO)),
         skills=skill_router,
+        quiet_start=quiet_start,
+        quiet_end=quiet_end,
+        brief_enabled=brief_enabled,
+        brief_time=brief_time,
+        brief_chats=brief_chats,
     )
     transport.set_handler(brain.async_handle)
     entry.async_on_unload(brain.async_stop)
@@ -191,20 +213,16 @@ async def async_setup_entry(
         brain=brain,
         chats=chats,
         briefing=briefing,
-        brief_enabled=bool(options.get(CONF_BRIEF_ENABLED, DEFAULT_BRIEF_ENABLED)),
-        brief_time=_str_or_none(options.get(CONF_BRIEF_TIME)) or DEFAULT_BRIEF_TIME,
-        brief_chats=tuple(
-            int(cid)
-            for cid in (options.get(CONF_BRIEF_CHATS) or ())
-            if str(cid).lstrip("-").isdigit()
-        ),
-        quiet_start=_str_or_none(options.get(CONF_QUIET_START)) or DEFAULT_QUIET_START,
-        quiet_end=_str_or_none(options.get(CONF_QUIET_END)) or DEFAULT_QUIET_END,
+        brief_enabled=brief_enabled,
+        brief_time=brief_time,
+        brief_chats=brief_chats,
+        quiet_start=quiet_start,
+        quiet_end=quiet_end,
         stats=stats,
+        bot_token=bot_token,
     )
     entry.runtime_data = runtime
 
-    skill_router = SkillRouter(hass, briefing)
     async_register_intents(hass, skill_router)
     entry.async_on_unload(lambda: async_remove_intents(hass))
     try:
@@ -286,24 +304,20 @@ def _async_schedule_briefing(
     entry: HearthkeeperConfigEntry,
     runtime: HearthkeeperRuntime,
 ) -> None:
-    """Send the briefing every day at the configured time."""
-    if not runtime.brief_enabled:
-        return
+    """Check every minute whose daily briefing is due.
 
-    hour, minute = parse_brief_time(runtime.brief_time)
-
-    chats = runtime.brief_chats
+    Each user may pick their own time in the Mini App, so the schedule is not
+    a single time of day any more.
+    """
 
     @callback
-    def _time_changed(now: object) -> None:
+    def _time_changed(now: datetime) -> None:
         hass.async_create_task(
-            runtime.brain.async_send_briefing(brief_chats=chats),
+            runtime.brain.async_scheduled_tick(now),
             "hearthkeeper morning briefing",
         )
 
-    entry.async_on_unload(
-        async_track_time_change(hass, _time_changed, hour=hour, minute=minute, second=0)
-    )
+    entry.async_on_unload(async_track_time_change(hass, _time_changed, second=0))
 
 
 def _as_int(value: object) -> int | None:

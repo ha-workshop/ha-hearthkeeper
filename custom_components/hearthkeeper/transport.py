@@ -18,8 +18,10 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+import aiohttp
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     DEDUP_CACHE_SIZE,
@@ -232,9 +234,11 @@ class Transport:
         telegram_entry_id: str,
         allowed_chats: set[int],
         allow_groups: bool,
+        bot_token: str | None = None,
     ) -> None:
         """Initialise the transport."""
         self.hass = hass
+        self._bot_token = bot_token
         self._telegram_entry_id = telegram_entry_id
         self._allowed_chats = allowed_chats
         self._allow_groups = allow_groups
@@ -314,11 +318,38 @@ class Transport:
             _LOGGER.warning("No message handler registered, dropping message")
             return
 
+        self._async_queue(message)
+
+    @callback
+    def _async_queue(self, message: IncomingMessage) -> None:
+        """Hand an accepted message to the chat worker."""
         task = self.hass.async_create_task(
             self._async_dispatch(message), f"hearthkeeper chat {message.chat_id}"
         )
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+    @callback
+    def async_inject_command(
+        self, chat_id: int, user_id: int, command: str, args: list[str]
+    ) -> None:
+        """Run a command on behalf of an already authorised Mini App user.
+
+        It goes through the same per-chat queue as Telegram updates, so it never
+        races a message the user typed at the same time.
+        """
+        if self._handler is None:
+            return
+        self._async_queue(
+            IncomingMessage(
+                kind=MessageKind.COMMAND,
+                chat_id=chat_id,
+                user_id=user_id,
+                text=" ".join((f"/{command}", *args)),
+                command=f"/{command}",
+                args=tuple(args),
+            )
+        )
 
     async def _async_dispatch(self, message: IncomingMessage) -> None:
         """Process one message while holding the chat lock."""
@@ -402,6 +433,7 @@ class Transport:
         thread_id: int | None = None,
         reply_to: int | None = None,
         keyboard: list[list[list[str]]] | None = None,
+        silent: bool = False,
     ) -> int | None:
         """Send text to a chat, splitting long replies.
 
@@ -417,6 +449,7 @@ class Transport:
                 thread_id=thread_id,
                 reply_to=reply_to,
                 keyboard=(keyboard if keyboard and index == len(chunks) - 1 else None),
+                silent=silent,
             )
             if last_message_id is not None:
                 self._remember_sent(chat_id, last_message_id)
@@ -430,6 +463,7 @@ class Transport:
         thread_id: int | None,
         reply_to: int | None,
         keyboard: list[list[list[str]]] | None = None,
+        silent: bool = False,
     ) -> int | None:
         """Send one message chunk."""
         data: dict[str, Any] = {
@@ -445,6 +479,8 @@ class Transport:
             data[_DATA_REPLY_TO] = reply_to
         if keyboard:
             data["inline_keyboard"] = keyboard
+        if silent:
+            data["disable_notification"] = True
 
         try:
             response = await self._async_call_send_message(data)
@@ -531,11 +567,64 @@ class Transport:
             await self.hass.services.async_call(
                 TELEGRAM_DOMAIN,
                 _SERVICE_ANSWER_CALLBACK,
-                {"callback_query_id": query_id, "message": text},
+                {
+                    _DATA_CONFIG_ENTRY_ID: self._telegram_entry_id,
+                    "callback_query_id": query_id,
+                    "message": text,
+                },
                 blocking=True,
             )
         except HomeAssistantError as err:
             _LOGGER.debug("Could not answer a callback query (%s)", type(err).__name__)
+
+    async def async_send_web_app_button(
+        self, chat_id: int, text: str, label: str, url: str
+    ) -> bool:
+        """Send a message with a button that opens the Mini App.
+
+        ``telegram_bot`` services cannot build ``web_app`` buttons, so this one
+        message goes straight to the Bot API with the token of the same bot.
+        Telegram allows such inline buttons in private chats only.
+        """
+        if not self._bot_token:
+            return False
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "reply_markup": {
+                "inline_keyboard": [[{"text": label, "web_app": {"url": url}}]]
+            },
+        }
+        session = async_get_clientsession(self.hass)
+        try:
+            async with asyncio.timeout(15):
+                response = await session.post(
+                    f"https://api.telegram.org/bot{self._bot_token}/sendMessage",
+                    json=payload,
+                )
+                result = await response.json(content_type=None)
+        except (TimeoutError, aiohttp.ClientError, ValueError) as err:
+            _LOGGER.warning(
+                "Could not send the Mini App button to chat %s (%s)",
+                chat_id,
+                type(err).__name__,
+            )
+            return False
+        if not isinstance(result, dict) or not result.get("ok"):
+            # The description never contains the token; the URL is not logged.
+            description = (
+                result.get("description") if isinstance(result, dict) else None
+            )
+            _LOGGER.warning(
+                "Telegram refused the Mini App button in chat %s (%s)",
+                chat_id,
+                description,
+            )
+            return False
+        message = result.get("result")
+        if isinstance(message, dict) and isinstance(message.get("message_id"), int):
+            self._remember_sent(chat_id, message["message_id"])
+        return True
 
     async def async_download_file(self, file_id: str, *, file_name: str) -> str | None:
         """Download a Telegram file into the integration's own directory.

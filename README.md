@@ -63,6 +63,7 @@ replies through `telegram_bot` services.
 | `/mail` | Recent mail: unread counters and senders/subjects |
 | `/remind 20m text` | Reminder in 20 minutes; also `/remind 20:30 text`, `/remind list`, `/remind cancel` |
 | `/model` | Switch the conversation agent for this chat (buttons or `/model <name>`) |
+| `/web` | Open the Mini App: settings and quick actions (private chat, needs an HTTPS URL of Home Assistant) |
 
 ## Skills
 

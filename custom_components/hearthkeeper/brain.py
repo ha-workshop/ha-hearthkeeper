@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from .const import (
     REPLY_MODE_BOTH,
     REPLY_MODE_TEXT,
     REPLY_MODE_VOICE,
+    REPLY_MODES,
     VOICE_DOWNLOAD_LIMIT,
 )
 from .mail import Mailbox, async_mail_digest
@@ -31,6 +33,7 @@ from .reminders import (
     parse_reminder,
     parse_reminder_command,
 )
+from .settings import apply_preferences, normalise_time
 from .shop import ShopSkill
 from .skills import SkillRouter
 from .stats import RuntimeStats
@@ -45,7 +48,7 @@ from .voice import (
     audio_suffix,
     is_audio,
 )
-from .webapp import WEBAPP_URL
+from .webapp import get_webapp_url
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,9 +66,20 @@ TEXTS: dict[str, dict[str, str]] = {
             "/remind 20m текст — напоминание\n"
             "/web — открыть Mini App\n"
             "/model — сменить агента\n"
+            "/web — открыть приложение\n"
             "/help — эта справка"
         ),
         "reset_done": "Контекст разговора сброшен.",
+        "web_open": "Настройки и быстрые действия — в приложении:",
+        "web_button": "🏠 Открыть Hearthkeeper",
+        "web_no_url": (
+            "Приложению нужен HTTPS-адрес Home Assistant. Укажите внешний URL "
+            "(Nabu Casa или свой прокси) в настройках сети HA."
+        ),
+        "web_private_only": "Приложение открывается только в личном чате с ботом.",
+        "web_failed": (
+            "Не получилось отправить кнопку приложения. Подробности в логе HA."
+        ),
         "voice_set": "Режим ответа: {mode}.",
         "voice_unknown": (
             "Не понял режим. Используйте /voice on, /voice off или /voice both."
@@ -126,9 +140,18 @@ TEXTS: dict[str, dict[str, str]] = {
             "/remind 20m text — a reminder\n"
             "/web — open the Mini App\n"
             "/model — switch the agent\n"
+            "/web — open the app\n"
             "/help — this help"
         ),
         "reset_done": "Conversation context cleared.",
+        "web_open": "Settings and quick actions live in the app:",
+        "web_button": "🏠 Open Hearthkeeper",
+        "web_no_url": (
+            "The app needs an HTTPS address of Home Assistant. Set the external "
+            "URL (Nabu Casa or your own proxy) in the HA network settings."
+        ),
+        "web_private_only": "The app opens only in a private chat with the bot.",
+        "web_failed": "Could not send the app button. See the Home Assistant log.",
         "voice_set": "Reply mode: {mode}.",
         "voice_unknown": "Unknown mode. Use /voice on, /voice off or /voice both.",
         "voice_no_tts": (
@@ -209,6 +232,9 @@ class Brain:
         quiet_start: str = "",
         quiet_end: str = "",
         skills: SkillRouter | None = None,
+        brief_enabled: bool = False,
+        brief_time: str = "",
+        brief_chats: tuple[int, ...] = (),
     ) -> None:
         """Initialise the brain with entry-level defaults."""
         self.hass = hass
@@ -224,6 +250,10 @@ class Brain:
         self._keep_audio = keep_audio
         self._quiet_start = quiet_start
         self._quiet_end = quiet_end
+        self._todo_entity = todo_entity
+        self._brief_enabled = brief_enabled
+        self._brief_time = brief_time
+        self._brief_chats = brief_chats
         self._shop = ShopSkill(hass, transport, todo_entity)
         self._skills = skills or SkillRouter(
             hass, self._briefing, mailbox, allow_cloud_for_mail
@@ -251,8 +281,21 @@ class Brain:
             return
 
         if message.kind is MessageKind.WEB_APP:
+            # Data sent by a Mini App is a command line, never a question for
+            # the agent.
+            parts = message.text.split()
+            if not parts or not parts[0].startswith("/"):
+                return
             self._stats.commands += 1
-            await self._async_answer(message, chat)
+            await self._async_handle_command(
+                replace(
+                    message,
+                    kind=MessageKind.COMMAND,
+                    command=parts[0],
+                    args=tuple(parts[1:]),
+                ),
+                chat,
+            )
             return
 
         if message.kind is MessageKind.ATTACHMENT and is_audio(message.attachment):
@@ -553,17 +596,18 @@ class Brain:
         await self._async_deliver(chat, text, chat_id=chat_id, mode=mode)
 
     async def async_send_briefing(
-        self, chat_id: int | None = None, *, brief_chats: tuple[int, ...] = ()
+        self,
+        chat_id: int | None = None,
+        *,
+        brief_chats: tuple[int, ...] = (),
+        scheduled: bool = False,
     ) -> None:
         """Build and deliver the briefing to one chat or every private chat."""
         if chat_id is not None:
             targets = [chat_id]
-        elif brief_chats:
-            targets = [
-                cid
-                for cid in brief_chats
-                if cid in {k.chat_id for k in self._chats.chats.values()}
-            ]
+        elif brief_chats or self._brief_chats:
+            wanted = brief_chats or self._brief_chats
+            targets = [cid for cid in wanted if cid in self._chats.chats]
         else:
             targets = [
                 known.chat_id
@@ -574,18 +618,17 @@ class Brain:
             _LOGGER.debug("No private chat is known yet, skipping the briefing")
             return
 
-        if is_quiet_hours(
-            quiet_start=self._quiet_start, quiet_end=self._quiet_end
-        ):
-            _LOGGER.debug("Quiet hours: skipping the scheduled briefing")
-            return
-
         self._stats.briefings += 1
         for target in targets:
             chat = self._chats.get(target)
+            # Quiet hours hold back only the daily schedule; a briefing
+            # someone asked for right now is always sent.
+            if scheduled and self._is_quiet(chat):
+                _LOGGER.debug("Quiet hours: skipping a scheduled briefing")
+                continue
             text = await async_build_briefing(
                 self.hass,
-                self._briefing,
+                self._sources(chat),
                 self._language(chat),
                 mailbox=self._mailbox,
                 allow_cloud_for_mail=self._allow_cloud_for_mail,
@@ -785,7 +828,7 @@ class Brain:
         )
         text = await async_build_briefing(
             self.hass,
-            self._briefing,
+            self._sources(chat),
             self._language(chat),
             mailbox=self._mailbox,
             allow_cloud_for_mail=self._allow_cloud_for_mail,
@@ -801,7 +844,7 @@ class Brain:
         )
         text = await async_mail_digest(
             self.hass,
-            self._briefing,
+            self._sources(chat),
             self._language(chat),
             mailbox=self._mailbox,
             allow_cloud=self._allow_cloud_for_mail,
@@ -874,13 +917,74 @@ class Brain:
     async def _async_deliver_reminder(
         self, chat_id: int, thread_id: int | None, text: str
     ) -> None:
-        """Send a due reminder to its chat, respecting quiet hours."""
-        if is_quiet_hours(
-            quiet_start=self._quiet_start, quiet_end=self._quiet_end
-        ):
-            _LOGGER.debug("Quiet hours: deferring the reminder delivery")
-            return
-        await self._transport.async_send_text(chat_id, text, thread_id=thread_id)
+        """Send a due reminder; during quiet hours it arrives without a sound."""
+        silent = self._is_quiet(self._chats.get(chat_id))
+        await self._transport.async_send_text(
+            chat_id, text, thread_id=thread_id, silent=silent
+        )
+
+    # Personal settings ----------------------------------------------------
+
+    def _sources(self, chat: ChatContext) -> BriefingSources:
+        """Return the briefing sources of a chat.
+
+        Personal calendars and mailboxes are limited to the ones the
+        integration options share, even if the options changed since.
+        """
+        override = chat.sources or {}
+        shared = self._briefing
+        return BriefingSources(
+            calendars=tuple(
+                item
+                for item in override.get("calendars", shared.calendars)
+                if item in shared.calendars
+            ),
+            weather=override.get("weather", shared.weather),
+            todo=shared.todo,
+            mail=tuple(
+                item
+                for item in override.get("mail", shared.mail)
+                if item in shared.mail
+            ),
+            home=override.get("home", shared.home),
+        )
+
+    def _quiet_hours(self, chat: ChatContext) -> tuple[str, str]:
+        """Return the quiet interval of a chat; empty strings mean off."""
+        if chat.quiet is not None:
+            return (chat.quiet[0], chat.quiet[1]) if chat.quiet else ("", "")
+        return (
+            normalise_time(self._quiet_start) or "",
+            normalise_time(self._quiet_end) or "",
+        )
+
+    def _is_quiet(self, chat: ChatContext) -> bool:
+        start, end = self._quiet_hours(chat)
+        return is_quiet_hours(quiet_start=start, quiet_end=end)
+
+    def _brief_schedule(self, chat: ChatContext) -> tuple[bool, str]:
+        """Return whether and when a chat gets the daily briefing."""
+        if chat.brief_enabled is not None:
+            enabled = chat.brief_enabled
+        else:
+            enabled = self._brief_enabled and (
+                not self._brief_chats or chat.chat_id in self._brief_chats
+            )
+        time = chat.brief_time or normalise_time(self._brief_time) or "08:00"
+        return enabled, time
+
+    async def async_scheduled_tick(self, now: datetime) -> None:
+        """Send the daily briefing to every private chat whose time is now."""
+        current = f"{now.hour:02d}:{now.minute:02d}"
+        due = []
+        for chat in list(self._chats.chats.values()):
+            if chat.chat_id <= 0:
+                continue
+            enabled, at = self._brief_schedule(chat)
+            if enabled and at == current:
+                due.append(chat.chat_id)
+        for chat_id in due:
+            await self.async_send_briefing(chat_id, scheduled=True)
 
     def async_stop(self) -> None:
         """Cancel pending reminders when the config entry unloads."""
@@ -889,25 +993,162 @@ class Brain:
     async def _async_web_command(
         self, message: IncomingMessage, chat: ChatContext
     ) -> None:
-        """Open the Mini App in Telegram."""
-        webapp_url = WEBAPP_URL
-        if not webapp_url:
-            await self._reply(
-                message,
-                "Mini App URL is not configured. "
-                "Set the external URL in Home Assistant.",
-            )
+        """Send a button that opens the Mini App."""
+        if message.chat_id < 0:
+            await self._reply(message, self._text(chat, "web_private_only"))
             return
-        keyboard: list[list[list[str]]] = [
-            [[{"text": "🚀 Open Hearthkeeper", "web_app": {"url": webapp_url}}]]
-        ]
-        await self._transport.async_send_text(
+        url = get_webapp_url(self.hass)
+        if url is None:
+            await self._reply(message, self._text(chat, "web_no_url"))
+            return
+        sent = await self._transport.async_send_web_app_button(
             message.chat_id,
-            "Open the Mini App to chat in a rich interface:",
-            thread_id=message.thread_id,
-            reply_to=message.message_id if message.chat_id < 0 else None,
-            keyboard=keyboard,
+            self._text(chat, "web_open"),
+            self._text(chat, "web_button"),
+            url,
         )
+        if not sent:
+            await self._reply(message, self._text(chat, "web_failed"))
+
+    # Mini App API -------------------------------------------------------
+
+    def webapp_state(self, chat_id: int, first_name: str = "") -> dict[str, object]:
+        """Return what the Mini App shows for one private chat."""
+        chat = self._chats.get(chat_id)
+        pipeline_agent = self._agent_id()
+        current = chat.agent_id or pipeline_agent
+        tts = bool(self._pipeline and self._pipeline.tts_engine)
+        stt = bool(self._pipeline and self._pipeline.stt_engine)
+        sources = self._sources(chat)
+        brief_enabled, brief_time = self._brief_schedule(chat)
+        quiet_start, quiet_end = self._quiet_hours(chat)
+        return {
+            "first_name": first_name,
+            "language": self._language(chat),
+            "bot_username": self._transport.bot_username,
+            "reply_mode": chat.reply_mode or self._default_reply_mode,
+            "reply_modes": list(REPLY_MODES),
+            "tts": tts,
+            "stt": stt,
+            "pipeline": self._pipeline.name if self._pipeline else None,
+            "agent": {
+                "id": current,
+                "name": self._agent_name(current),
+                "overridden": chat.agent_id is not None,
+                "pipeline_name": self._agent_name(pipeline_agent),
+            },
+            "agents": [
+                {"id": agent_id, "name": name}
+                for agent_id, name in self._agent_list()
+            ],
+            "personal": chat.has_prefs,
+            "brief": {
+                "enabled": brief_enabled,
+                "time": brief_time,
+                "quiet_start": quiet_start,
+                "quiet_end": quiet_end,
+                "personal_brief": chat.brief_enabled is not None
+                or chat.brief_time is not None,
+                "personal_quiet": chat.quiet is not None,
+            },
+            "sources": {
+                "weather": self._entity_name(sources.weather),
+                "weather_id": sources.weather,
+                "calendars": [
+                    self._entity_name(entity) for entity in sources.calendars
+                ],
+                "calendar_ids": list(sources.calendars),
+                "todo": self._entity_name(self._todo_entity),
+                "mail": bool(sources.mail),
+                "mail_ids": list(sources.mail),
+                "home": sources.home,
+                "personal": bool(chat.sources),
+            },
+            "choices": {
+                "weather": self._entity_choices(self._weather_ids()),
+                "calendars": self._entity_choices(self._briefing.calendars),
+                "mail": self._entity_choices(self._briefing.mail),
+            },
+            "shared": {
+                "max_voice_seconds": self._max_voice_seconds,
+                "keep_audio": self._keep_audio,
+                "allow_cloud_for_mail": self._allow_cloud_for_mail,
+            },
+            "reminders": [
+                {"when": _format_due(item.due), "text": item.text}
+                for item in self._reminders.items(chat_id)
+            ],
+        }
+
+    async def async_set_reply_mode(self, chat_id: int, mode: str) -> bool:
+        """Change the reply mode of a chat; False when voice is not possible."""
+        if mode != REPLY_MODE_TEXT and not (
+            self._pipeline and self._pipeline.tts_engine
+        ):
+            return False
+        chat = self._chats.get(chat_id)
+        chat.reply_mode = mode
+        await self._chats.async_save()
+        return True
+
+    async def async_set_agent(self, chat_id: int, agent_id: str | None) -> bool:
+        """Pin a conversation agent to a chat, or go back to the pipeline's."""
+        if agent_id is not None and agent_id not in {
+            known for known, _ in self._agent_list()
+        }:
+            return False
+        await self._async_apply_agent(self._chats.get(chat_id), agent_id)
+        return True
+
+    async def async_new_conversation(self, chat_id: int) -> None:
+        """Forget the conversation context of a chat."""
+        chat = self._chats.get(chat_id)
+        chat.conversation_id = f"tg:{chat_id}"
+        await self._chats.async_save()
+
+    async def async_update_preferences(
+        self, chat_id: int, patch: object
+    ) -> list[str]:
+        """Change the personal settings of a private chat.
+
+        Raises ``InvalidPreference`` when any value is not acceptable.
+        """
+        chat = self._chats.get(chat_id)
+        changed = apply_preferences(
+            chat,
+            patch,
+            weather_ids=self._weather_ids(),
+            calendar_pool=self._briefing.calendars,
+            mail_pool=self._briefing.mail,
+        )
+        await self._chats.async_save()
+        return changed
+
+    def _weather_ids(self) -> list[str]:
+        """Return every weather entity, the shared one first."""
+        ids = [state.entity_id for state in self.hass.states.async_all("weather")]
+        if self._briefing.weather and self._briefing.weather not in ids:
+            ids.insert(0, self._briefing.weather)
+        return ids
+
+    def _entity_choices(self, entity_ids: object) -> list[dict[str, str]]:
+        """Return ``{id, name}`` pairs for the page's pickers."""
+        return [
+            {"id": entity_id, "name": self._entity_name(entity_id) or entity_id}
+            for entity_id in entity_ids  # type: ignore[attr-defined]
+        ]
+
+    def cancel_reminders(self, chat_id: int) -> int:
+        """Cancel every reminder of a chat."""
+        return self._reminders.cancel_all(chat_id)
+
+    def _entity_name(self, entity_id: str | None) -> str | None:
+        """Return the friendly name of an entity, or its id."""
+        if not entity_id:
+            return None
+        state = self.hass.states.get(entity_id)
+        name = state.attributes.get("friendly_name") if state else None
+        return name if isinstance(name, str) and name else entity_id
 
     async def _async_voice_command(
         self, message: IncomingMessage, chat: ChatContext

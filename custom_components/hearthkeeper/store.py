@@ -1,7 +1,9 @@
 """Persistent per-chat state for Hearthkeeper.
 
-Only routing data lives here: conversation id, agent, reply mode, language and
-timestamps. Message texts, audio, calendar and mail content never reach disk.
+Only routing data and personal preferences live here: conversation id, agent,
+reply mode, language, timestamps and the briefing and quiet-hour choices made
+in the Mini App. Message texts, audio, calendar and mail content never reach
+disk.
 """
 
 from __future__ import annotations
@@ -28,6 +30,13 @@ class ChatContext:
     language: str | None = None
     last_seen: str | None = None
     last_agent: str | None = None
+    # Personal preferences. ``None`` means "use the integration options".
+    brief_enabled: bool | None = None
+    brief_time: str | None = None
+    # ``[start, end]``; an empty list turns quiet hours off for this chat.
+    quiet: list[str] | None = None
+    # Overridden briefing sources only: weather, calendars, mail, home.
+    sources: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         """Return the persisted representation."""
@@ -51,12 +60,66 @@ class ChatContext:
             language=_str_or_none(data.get("language")),
             last_seen=_str_or_none(data.get("last_seen")),
             last_agent=_str_or_none(data.get("last_agent")),
+            brief_enabled=_bool_or_none(data.get("brief_enabled")),
+            brief_time=_str_or_none(data.get("brief_time")),
+            quiet=_quiet_or_none(data.get("quiet")),
+            sources=_sources_or_none(data.get("sources")),
         )
+
+    @property
+    def has_prefs(self) -> bool:
+        """Return True when any personal preference is set."""
+        return (
+            self.brief_enabled is not None
+            or self.brief_time is not None
+            or self.quiet is not None
+            or bool(self.sources)
+        )
+
+    def clear_prefs(self) -> None:
+        """Go back to the integration options for every preference."""
+        self.brief_enabled = None
+        self.brief_time = None
+        self.quiet = None
+        self.sources = None
 
 
 def _str_or_none(value: object) -> str | None:
     """Return value when it is a non-empty string."""
     return value if isinstance(value, str) and value else None
+
+
+def _bool_or_none(value: object) -> bool | None:
+    """Return value when it is a bool."""
+    return value if isinstance(value, bool) else None
+
+
+def _quiet_or_none(value: object) -> list[str] | None:
+    """Return a stored quiet interval: two times, or empty for "off"."""
+    if not isinstance(value, list):
+        return None
+    if not value:
+        return []
+    if len(value) == 2 and all(isinstance(item, str) and item for item in value):
+        return list(value)
+    return None
+
+
+def _sources_or_none(value: object) -> dict[str, Any] | None:
+    """Return the stored source overrides, dropping anything malformed."""
+    if not isinstance(value, dict):
+        return None
+    sources: dict[str, Any] = {}
+    weather = value.get("weather", ...)
+    if weather is None or (isinstance(weather, str) and weather):
+        sources["weather"] = weather
+    for key in ("calendars", "mail"):
+        items = value.get(key)
+        if isinstance(items, list):
+            sources[key] = [item for item in items if isinstance(item, str) and item]
+    if isinstance(value.get("home"), bool):
+        sources["home"] = value["home"]
+    return sources or None
 
 
 class ChatStore:

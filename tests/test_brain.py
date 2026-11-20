@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 from custom_components.hearthkeeper import brain as brain_module
 from custom_components.hearthkeeper.assist import PipelineSettings
 from custom_components.hearthkeeper.brain import Brain, extract_speech
+from custom_components.hearthkeeper.brief import BriefingSources
 from custom_components.hearthkeeper.store import ChatStore
 from custom_components.hearthkeeper.transport import (
     Attachment,
@@ -48,6 +50,8 @@ class FakeTransport:
         self.voices: list[tuple[int, str]] = []
         self.edited: list[tuple[int, int, str]] = []
         self.answered: list[tuple[str | None, str]] = []
+        self.silent: list[bool] = []
+        self.web_buttons: list[tuple[int, str]] = []
 
     async def async_send_text(
         self,
@@ -57,11 +61,20 @@ class FakeTransport:
         thread_id: int | None = None,
         reply_to: int | None = None,
         keyboard: list[list[list[str]]] | None = None,
+        silent: bool = False,
     ) -> int | None:
         """Record a reply."""
         self.sent.append((chat_id, text))
         self.keyboards.append(keyboard)
+        self.silent.append(silent)
         return 1
+
+    async def async_send_web_app_button(
+        self, chat_id: int, text: str, label: str, url: str
+    ) -> bool:
+        """Record a Mini App button."""
+        self.web_buttons.append((chat_id, url))
+        return True
 
     async def async_send_chat_action(
         self, chat_id: int, action: str = "typing", *, thread_id: int | None = None
@@ -761,3 +774,239 @@ async def test_say_service_can_speak(
     assert transport.voices == [(42, "/media/hearthkeeper/say.ogg")]
     assert transport.sent == []
     assert discarded == [Path("/media/hearthkeeper/say.ogg")]
+
+
+async def test_web_command_sends_mini_app_button(hass: HomeAssistant) -> None:
+    """/web sends a web_app button when Home Assistant has an HTTPS URL."""
+    hass.config.external_url = "https://home.example.org"
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(_message("/web", kind=MessageKind.COMMAND, command="/web"))
+
+    assert transport.web_buttons == [
+        (42, "https://home.example.org/api/hearthkeeper/webapp")
+    ]
+    assert transport.sent == []
+
+
+async def test_web_command_without_https(hass: HomeAssistant) -> None:
+    """Without HTTPS the user learns what to configure."""
+    hass.config.external_url = "http://192.168.1.10:8123"
+    hass.config.internal_url = "http://192.168.1.10:8123"
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(_message("/web", kind=MessageKind.COMMAND, command="/web"))
+
+    assert transport.web_buttons == []
+    assert "HTTPS" in transport.sent[0][1]
+
+
+async def test_web_command_in_group_is_refused(hass: HomeAssistant) -> None:
+    """Telegram allows web_app buttons only in private chats."""
+    hass.config.external_url = "https://home.example.org"
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(
+        _message("/web", kind=MessageKind.COMMAND, command="/web", chat_id=-100)
+    )
+
+    assert transport.web_buttons == []
+    assert transport.sent and transport.sent[0][0] == -100
+
+
+async def test_web_app_data_runs_a_command(hass: HomeAssistant) -> None:
+    """Mini App data is a command line, never a question for the agent."""
+    calls: list[Any] = []
+
+    async def _process(call: Any) -> dict[str, Any]:
+        calls.append(call)
+        return {}
+
+    hass.services.async_register(
+        "conversation", "process", _process, supports_response=SupportsResponse.ONLY
+    )
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain.async_handle(_message("/voice on", kind=MessageKind.WEB_APP))
+    await brain.async_handle(_message("turn off the lights", kind=MessageKind.WEB_APP))
+
+    assert calls == []
+    assert brain._chats.get(42).reply_mode == "voice"
+
+
+async def test_reminder_in_quiet_hours_is_silent(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A due reminder is never dropped; in quiet hours it comes without sound."""
+    monkeypatch.setattr(brain_module, "is_quiet_hours", lambda **_: True)
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    await brain._async_deliver_reminder(42, None, "⏰ call mom")
+
+    assert transport.sent == [(42, "⏰ call mom")]
+    assert transport.silent == [True]
+
+
+async def test_quiet_hours_skip_only_scheduled_briefing(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A briefing someone asked for is sent even in quiet hours."""
+
+    async def _brief(*args: Any, **kwargs: Any) -> str:
+        return "Сводка дня"
+
+    monkeypatch.setattr(brain_module, "async_build_briefing", _brief)
+    monkeypatch.setattr(brain_module, "is_quiet_hours", lambda **_: True)
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+    brain._chats.get(42)
+
+    await brain.async_send_briefing(scheduled=True)
+    assert transport.sent == []
+
+    await brain.async_send_briefing()
+    assert transport.sent == [(42, "Сводка дня")]
+
+
+async def test_webapp_state_and_settings(hass: HomeAssistant) -> None:
+    """The Mini App reads and changes the per-chat settings."""
+    hass.states.async_set("conversation.home", "on", {"friendly_name": "Home"})
+    hass.states.async_set("conversation.llm", "on", {"friendly_name": "LLM"})
+    transport = FakeTransport()
+    brain = _brain(hass, transport)
+
+    state = brain.webapp_state(42, "Олег")
+    assert state["first_name"] == "Олег"
+    assert state["reply_mode"] == "text"
+    assert state["agent"] == {
+        "id": "conversation.home",
+        "name": "Home",
+        "overridden": False,
+        "pipeline_name": "Home",
+    }
+    assert {agent["id"] for agent in state["agents"]} == {
+        "conversation.home",
+        "conversation.llm",
+    }
+
+    assert await brain.async_set_reply_mode(42, "both")
+    assert await brain.async_set_agent(42, "conversation.llm")
+    assert not await brain.async_set_agent(42, "conversation.missing")
+    state = brain.webapp_state(42)
+    assert state["reply_mode"] == "both"
+    assert state["agent"]["id"] == "conversation.llm"
+    assert state["agent"]["overridden"] is True
+
+    no_tts = _brain(hass, FakeTransport(), pipeline=None)
+    assert not await no_tts.async_set_reply_mode(42, "voice")
+
+
+async def test_personal_sources_stay_inside_the_shared_pool(
+    hass: HomeAssistant,
+) -> None:
+    """A user narrows the shared calendars and mail; they cannot add others."""
+    brain = Brain(
+        hass,  # type: ignore[arg-type]
+        FakeTransport(),  # type: ignore[arg-type]
+        ChatStore(hass),
+        pipeline=None,
+        reply_mode="text",
+        briefing=BriefingSources(
+            calendars=("calendar.family", "calendar.work"),
+            weather="weather.home",
+            mail=("sensor.inbox",),
+        ),
+    )
+    hass.states.async_set("weather.dacha", "sunny")
+
+    await brain.async_update_preferences(
+        42, {"calendars": ["calendar.work"], "weather": "weather.dacha", "mail": []}
+    )
+    sources = brain._sources(brain._chats.get(42))
+    assert sources.calendars == ("calendar.work",)
+    assert sources.weather == "weather.dacha"
+    assert sources.mail == ()
+
+    # Someone else keeps the household defaults.
+    assert brain._sources(brain._chats.get(7)).calendars == (
+        "calendar.family",
+        "calendar.work",
+    )
+
+    # When the admin removes a calendar from the options, it disappears for
+    # everyone who had picked it.
+    brain._briefing = BriefingSources(calendars=("calendar.family",))
+    assert brain._sources(brain._chats.get(42)).calendars == ()
+
+    state = brain.webapp_state(42)
+    assert state["personal"] is True
+    assert state["sources"]["personal"] is True
+
+
+async def test_scheduled_tick_uses_each_users_time(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every user gets the briefing at their own time, or not at all."""
+
+    async def _brief(*args: Any, **kwargs: Any) -> str:
+        return "Сводка дня"
+
+    monkeypatch.setattr(brain_module, "async_build_briefing", _brief)
+    transport = FakeTransport()
+    brain = Brain(
+        hass,  # type: ignore[arg-type]
+        transport,  # type: ignore[arg-type]
+        ChatStore(hass),
+        pipeline=None,
+        reply_mode="text",
+        brief_enabled=True,
+        brief_time="08:00:00",
+        quiet_start="",
+        quiet_end="",
+    )
+    brain._chats.get(1)  # household default: 08:00
+    await brain.async_update_preferences(2, {"brief_time": "07:15"})
+    await brain.async_update_preferences(3, {"brief_enabled": False})
+    brain._chats.get(-100)  # groups never get the daily briefing
+
+    await brain.async_scheduled_tick(datetime(2026, 11, 20, 7, 15))
+    assert transport.sent == [(2, "Сводка дня")]
+
+    transport.sent.clear()
+    await brain.async_scheduled_tick(datetime(2026, 11, 20, 8, 0))
+    assert transport.sent == [(1, "Сводка дня")]
+
+
+async def test_quiet_hours_are_personal(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reminders follow the quiet hours of the chat they are for."""
+    seen: list[tuple[str, str]] = []
+
+    def _quiet(**kwargs: str) -> bool:
+        seen.append((kwargs["quiet_start"], kwargs["quiet_end"]))
+        return bool(kwargs["quiet_start"])
+
+    monkeypatch.setattr(brain_module, "is_quiet_hours", _quiet)
+    transport = FakeTransport()
+    brain = Brain(
+        hass,  # type: ignore[arg-type]
+        transport,  # type: ignore[arg-type]
+        ChatStore(hass),
+        pipeline=None,
+        reply_mode="text",
+        quiet_start="23:00:00",
+        quiet_end="07:00:00",
+    )
+    await brain.async_update_preferences(2, {"quiet": []})
+
+    await brain._async_deliver_reminder(1, None, "a")
+    await brain._async_deliver_reminder(2, None, "b")
+
+    assert seen == [("23:00", "07:00"), ("", "")]
+    assert transport.silent == [True, False]

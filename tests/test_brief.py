@@ -160,3 +160,15 @@ async def test_unknown_weather_is_localised(hass: HomeAssistant, language: str) 
     )
 
     assert "something-new" in text
+
+
+def test_quiet_hours_accept_seconds() -> None:
+    """The options flow stores HH:MM:SS; quiet hours must still work."""
+    from datetime import datetime
+
+    from custom_components.hearthkeeper.brief import is_quiet_hours
+
+    night = datetime(2026, 11, 20, 23, 30)
+    noon = datetime(2026, 11, 20, 12, 0)
+    assert is_quiet_hours(night, "23:00:00", "07:00:00")
+    assert not is_quiet_hours(noon, "23:00:00", "07:00:00")

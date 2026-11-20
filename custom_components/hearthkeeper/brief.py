@@ -211,8 +211,9 @@ def is_quiet_hours(
         return False
     current = now or dt_util.now()
     try:
-        start_h, start_m = (int(x) for x in quiet_start.split(":", 1))
-        end_h, end_m = (int(x) for x in quiet_end.split(":", 1))
+        # The options flow stores HH:MM:SS; seconds do not matter here.
+        start_h, start_m = (int(x) for x in quiet_start.split(":")[:2])
+        end_h, end_m = (int(x) for x in quiet_end.split(":")[:2])
     except (ValueError, TypeError):
         return False
     current_minutes = current.hour * 60 + current.minute
