@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, SupportsResponse
 
 from custom_components.hearthkeeper.transport import (
     IncomingMessage,
@@ -188,3 +188,26 @@ def test_dedup_cache(hass: HomeAssistant) -> None:
     assert transport._is_duplicate(message) is False
     assert transport._is_duplicate(message) is True
     assert transport._is_duplicate(_message(message_id=5, chat_id=43)) is False
+
+
+async def test_send_text_converts_markdown_to_html(hass: HomeAssistant) -> None:
+    """Replies leave as Telegram HTML, not literal asterisks."""
+    calls: list[dict[str, Any]] = []
+
+    async def _send(call: Any) -> dict[str, Any]:
+        calls.append(dict(call.data))
+        return {"chats": [{"chat_id": 42, "message_id": 7}]}
+
+    hass.services.async_register(
+        "telegram_bot",
+        "send_message",
+        _send,
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    transport = _transport(hass)
+    message_id = await transport.async_send_text(42, "* привет **мир**")
+
+    assert message_id == 7
+    assert calls[0]["parse_mode"] == "html"
+    assert calls[0]["message"] == "• привет <b>мир</b>"

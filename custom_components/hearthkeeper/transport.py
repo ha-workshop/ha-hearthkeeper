@@ -33,6 +33,7 @@ from .const import (
     TELEGRAM_DOMAIN,
     TELEGRAM_MESSAGE_LIMIT,
 )
+from .formatting import to_telegram_html
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -469,9 +470,9 @@ class Transport:
         data: dict[str, Any] = {
             _DATA_CONFIG_ENTRY_ID: self._telegram_entry_id,
             _DATA_CHAT_ID: chat_id,
-            "message": chunk,
-            # The message text is plain text, never Telegram markup.
-            "parse_mode": "plain_text",
+            "message": to_telegram_html(chunk),
+            # Agents answer in Markdown; Telegram shows the HTML subset below.
+            "parse_mode": "html",
         }
         if thread_id is not None:
             data[_DATA_THREAD_ID] = thread_id
@@ -534,8 +535,8 @@ class Transport:
             _DATA_CONFIG_ENTRY_ID: self._telegram_entry_id,
             _DATA_CHAT_ID: chat_id,
             "message_id": message_id,
-            "message": text,
-            "parse_mode": "plain_text",
+            "message": to_telegram_html(text),
+            "parse_mode": "html",
         }
         if keyboard:
             data["inline_keyboard"] = keyboard

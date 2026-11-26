@@ -82,6 +82,10 @@ The same phrases are registered as Assist intents and written to
 `custom_sentences/` so the default Assist agent understands them too. Anything
 else goes to the conversation agent as before.
 
+Replies are sent with `parse_mode=html`: Markdown from the agent (`**bold**`,
+`*` bullets, code spans, links) is converted to the small HTML subset Telegram
+renders, and everything else is escaped, so no literal asterisks reach the chat.
+
 ## Briefing
 
 Open **Configure** and pick the sources you already use in Home Assistant:
