@@ -537,7 +537,7 @@ svg{display:block}
     briefings: [{id: "d1", kind: "morning", time: "08:00", name: "", enabled: true}],
     brief: {active: [["morning", "08:00"]], quiet_start: "23:00", quiet_end: "07:00", has_personal_briefings: false, personal_quiet: false},
     sources: {weather: "Forecast Home", weather_id: "weather.home", calendars: ["Family", "Work"], calendar_ids: ["calendar.family", "calendar.work"],
-              todo: "Shopping List", mail: true, mail_ids: ["sensor.inbox"], home: true, personal: false},
+              todo: "Shopping List", home: true, personal: false},
     choices: {weather: [{id: "weather.home", name: "Forecast Home"}],
               calendars: [{id: "calendar.family", name: "Family"}, {id: "calendar.work", name: "Work"}],
               mail: [{id: "sensor.inbox", name: "Inbox"}]},
@@ -646,7 +646,7 @@ svg{display:block}
       row({icon: ICON.line(P.cal), title: esc(t("calendars")), sub: esc(src.calendars.join(", ")),
            right: src.calendars.length ? `<span class="chip ok">${esc(t("cal_n", {n: src.calendars.length}))}</span>` : val(false)}) +
       row({icon: ICON.line(P.cart), title: esc(t("todo")), sub: esc(src.todo || ""), right: val(src.todo)}) +
-      row({icon: ICON.line(P.mail), title: esc(t("mail")), right: val(src.mail)}) +
+      <!-- mail section intentionally omitted -->
       row({icon: ICON.line(P.house), title: esc(t("home_state")), right: val(src.home)});
     $("schedule").innerHTML =
       row({icon: ICON.line(P.clock), title: esc(t("brief_daily")), value: esc(hasBriefings ? briefSummary() : t("off"))}) +
@@ -684,8 +684,6 @@ svg{display:block}
       onClick: openWeather});
     briefHtml += row({icon: ICON.line(P.cal), title: esc(t("calendars")), value: esc(ids.length ? t("cal_n", {n: ids.length}) : t("none")), chev: true,
       onClick: () => openMulti("calendars", t("calendars"), state.choices.calendars, ids)});
-    briefHtml += row({icon: ICON.line(P.mail), title: esc(t("mail")), value: esc(mailIds.length ? t("cal_n", {n: mailIds.length}) : t("none")), chev: true,
-      onClick: () => openMulti("mail", t("mail"), state.choices.mail, mailIds)});
     briefHtml += row({icon: ICON.line(P.house), title: esc(t("home_state")), right: sw(src.home),
       onClick: () => setPrefs({home: !src.home})});
     $("settings-brief").innerHTML = briefHtml;
@@ -710,7 +708,7 @@ svg{display:block}
       row({icon: ICON.line(P.mic), title: esc(t("stt")), value: esc(state.stt ? t("on") : t("off"))}) +
       row({icon: ICON.line(P.speaker), title: esc(t("tts")), value: esc(state.tts ? t("on") : t("off"))}) +
       row({icon: ICON.line(P.mic), title: esc(t("max_voice")), value: esc(t("sec", {n: state.shared.max_voice_seconds}))}) +
-      row({icon: ICON.line(P.mail), title: esc(t("cloud_mail")), value: esc(state.shared.allow_cloud_for_mail ? t("on") : t("off"))});
+      <!-- cloud mail info omitted -->
     $("settings-app").innerHTML =
       row({icon: ICON.line(P.globe), title: esc(t("language")), value: lang === "ru" ? "Русский" : "English"}) +
       row({icon: ICON.line(P.bot), title: esc(t("bot")), value: esc(state.bot_username ? "@" + state.bot_username : "—")}) +

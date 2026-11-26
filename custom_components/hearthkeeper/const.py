@@ -99,6 +99,7 @@ SERVICES: Final = (SERVICE_SAY, SERVICE_RESET, SERVICE_BRIEF)
 ATTR_CHAT_ID: Final = "chat_id"
 ATTR_TEXT: Final = "text"
 ATTR_MODE: Final = "mode"
+ATTR_KIND: Final = "kind"
 
 # Storage
 STORAGE_VERSION: Final = 1

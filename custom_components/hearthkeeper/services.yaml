@@ -47,3 +47,11 @@ brief:
       selector:
         number:
           mode: box
+    kind:
+      name: Kind
+      description: Morning (plan for the day) or evening (today's summary). Omit for the full briefing.
+      selector:
+        select:
+          options:
+            - morning
+            - evening

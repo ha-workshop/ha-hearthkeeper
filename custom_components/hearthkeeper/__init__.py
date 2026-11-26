@@ -22,8 +22,11 @@ from .brain import Brain
 from .brief import BriefingSources
 from .const import (
     ATTR_CHAT_ID,
+    ATTR_KIND,
     ATTR_MODE,
     ATTR_TEXT,
+    BRIEFING_EVENING,
+    BRIEFING_MORNING,
     CONF_ALLOW_CLOUD_FOR_MAIL,
     CONF_ALLOW_GROUPS,
     CONF_BRIEF_CALENDARS,
@@ -412,6 +415,8 @@ async def _async_handle_brief(call: ServiceCall) -> None:
         raise ServiceValidationError(
             translation_domain=DOMAIN, translation_key="invalid_service_data"
         )
+    raw_kind = call.data.get(ATTR_KIND)
+    kind = raw_kind if isinstance(raw_kind, str) and raw_kind in (BRIEFING_MORNING, BRIEFING_EVENING) else ""
 
     runtimes = _loaded_runtimes(call.hass)
     if not runtimes:
@@ -430,4 +435,4 @@ async def _async_handle_brief(call: ServiceCall) -> None:
             )
 
     for runtime in targets:
-        await runtime.brain.async_send_briefing(chat_id)
+        await runtime.brain.async_send_briefing(chat_id, kind=kind)
