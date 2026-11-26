@@ -986,8 +986,12 @@ async def test_scheduled_tick_uses_each_users_time(
         quiet_end="",
     )
     brain._chats.get(1)  # household default: 08:00
-    await brain.async_update_preferences(2, {"brief_time": "07:15"})
-    await brain.async_update_preferences(3, {"brief_enabled": False})
+    await brain.async_update_preferences(
+        2, {"briefings": [{"kind": "morning", "time": "07:15", "enabled": True}]}
+    )
+    await brain.async_update_preferences(
+        3, {"briefings": [{"kind": "morning", "time": "08:00", "enabled": False}]}
+    )
     brain._chats.get(-100)  # groups never get the daily briefing
 
     await brain.async_scheduled_tick(datetime(2026, 11, 20, 7, 15))

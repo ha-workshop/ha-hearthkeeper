@@ -16,6 +16,8 @@ from __future__ import annotations
 from collections.abc import Collection, Mapping
 from typing import Any
 
+import uuid
+
 from .store import ChatContext, BriefingPlan, normalise_time
 
 PREF_KEYS = frozenset(
@@ -119,7 +121,9 @@ def _as_briefing_plan(raw: object) -> BriefingPlan | None:
     name = raw.get("name", "")
     if not isinstance(name, str) or len(name) > 40:
         return None
-    return BriefingPlan(kind=kind, time=time, name=name.strip(), enabled=enabled)
+    raw_id = raw.get("id")
+    plan_id = raw_id if isinstance(raw_id, str) and 0 < len(raw_id) <= 32 else uuid.uuid4().hex[:8]  # type: ignore[attr-defined]
+    return BriefingPlan(id=plan_id, kind=kind, time=time, name=name.strip(), enabled=enabled)
 
 
 def _quiet(value: object) -> list[str] | None:

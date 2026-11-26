@@ -156,8 +156,8 @@ class FakeBrain:
 
     async def async_update_preferences(self, chat_id: int, patch: object) -> list[str]:
         self.calls.append(("prefs", (chat_id, patch)))
-        if patch == {"brief_time": "25:00"}:
-            raise InvalidPreference("brief_time")
+        if patch == {"briefings": [{"kind": "morning", "time": "25:00", "enabled": True}]}:
+            raise InvalidPreference("briefings")
         return sorted(patch)  # type: ignore[arg-type]
 
 
@@ -225,14 +225,14 @@ async def test_preferences_belong_to_the_signed_in_account(api: Any) -> None:
     init = _init_data()
 
     status, body = await api.call(
-        {"init_data": init, "action": "set_prefs", "prefs": {"brief_time": "07:15"}}
+        {"init_data": init, "action": "set_prefs", "prefs": {"briefings": [{"kind": "morning", "time": "07:15", "enabled": True}]}}
     )
     assert status == 200
     assert body["state"]["account"]["id"] == USER_ID
-    assert ("prefs", (USER_ID, {"brief_time": "07:15"})) in api.runtime.brain.calls
+    assert ("prefs", (USER_ID, {"briefings": [{"kind": "morning", "time": "07:15", "enabled": True}]})) in api.runtime.brain.calls
 
     status, body = await api.call(
-        {"init_data": init, "action": "set_prefs", "prefs": {"brief_time": "25:00"}}
+        {"init_data": init, "action": "set_prefs", "prefs": {"briefings": [{"kind": "morning", "time": "25:00", "enabled": True}]}}
     )
     assert (status, body["error"]) == (400, "bad_value")
 

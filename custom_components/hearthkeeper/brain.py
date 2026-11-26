@@ -604,8 +604,14 @@ class Brain:
         *,
         brief_chats: tuple[int, ...] = (),
         scheduled: bool = False,
+        kind: str = "",
     ) -> None:
-        """Build and deliver the briefing to one chat or every private chat."""
+        """Build and deliver the briefing to one chat or every private chat.
+
+        ``kind`` can be ``"morning"`` (plan for the day) or ``"evening"``
+        (what happened today). When empty the briefing shows everything as
+        before.
+        """
         if chat_id is not None:
             targets = [chat_id]
         elif brief_chats or self._brief_chats:
@@ -635,6 +641,7 @@ class Brain:
                 self._language(chat),
                 mailbox=self._mailbox,
                 allow_cloud_for_mail=self._allow_cloud_for_mail,
+                kind=kind or None,
             )
             await self._async_deliver(chat, text, chat_id=target)
 
@@ -965,29 +972,33 @@ class Brain:
         start, end = self._quiet_hours(chat)
         return is_quiet_hours(quiet_start=start, quiet_end=end)
 
-    def _brief_schedule(self, chat: ChatContext) -> tuple[bool, str]:
-        """Return whether and when a chat gets the daily briefing."""
-        if chat.brief_enabled is not None:
-            enabled = chat.brief_enabled
-        else:
-            enabled = self._brief_enabled and (
-                not self._brief_chats or chat.chat_id in self._brief_chats
-            )
-        time = chat.brief_time or normalise_time(self._brief_time) or "08:00"
-        return enabled, time
+    def _brief_schedule(self, chat: ChatContext) -> list[tuple[str, str]]:
+        """Return ``[(kind, time), …]`` for every enabled briefing of a chat.
+
+        Falls back to the household morning briefing with the old options.
+        """
+        plans = chat.briefings
+        if plans is not None:
+            return [(plan.kind, plan.time) for plan in plans if plan.enabled]
+        # Fallback: the household defaults from the integration options.
+        if self._brief_enabled:
+            time = normalise_time(self._brief_time) or "08:00"
+            if not self._brief_chats or chat.chat_id in self._brief_chats:
+                return [("morning", time)]
+        return []
 
     async def async_scheduled_tick(self, now: datetime) -> None:
         """Send the daily briefing to every private chat whose time is now."""
         current = f"{now.hour:02d}:{now.minute:02d}"
-        due = []
+        due: list[tuple[int, str]] = []
         for chat in list(self._chats.chats.values()):
             if chat.chat_id <= 0:
                 continue
-            enabled, at = self._brief_schedule(chat)
-            if enabled and at == current:
-                due.append(chat.chat_id)
-        for chat_id in due:
-            await self.async_send_briefing(chat_id, scheduled=True)
+            for kind, at in self._brief_schedule(chat):
+                if at == current:
+                    due.append((chat.chat_id, kind))
+        for chat_id, kind in due:
+            await self.async_send_briefing(chat_id, scheduled=True, kind=kind)
 
     def async_stop(self) -> None:
         """Cancel pending reminders when the config entry unloads."""
@@ -1023,7 +1034,7 @@ class Brain:
         tts = bool(self._pipeline and self._pipeline.tts_engine)
         stt = bool(self._pipeline and self._pipeline.stt_engine)
         sources = self._sources(chat)
-        brief_enabled, brief_time = self._brief_schedule(chat)
+        brief_schedule = self._brief_schedule(chat)
         quiet_start, quiet_end = self._quiet_hours(chat)
         return {
             "first_name": first_name,
@@ -1045,13 +1056,15 @@ class Brain:
                 for agent_id, name in self._agent_list()
             ],
             "personal": chat.has_prefs,
+            "briefings": [
+                {"id": plan.id, "kind": plan.kind, "time": plan.time, "name": plan.name, "enabled": plan.enabled}
+                for plan in (chat.briefings or [])
+            ],
             "brief": {
-                "enabled": brief_enabled,
-                "time": brief_time,
+                "active": brief_schedule,
                 "quiet_start": quiet_start,
                 "quiet_end": quiet_end,
-                "personal_brief": chat.brief_enabled is not None
-                or chat.brief_time is not None,
+                "has_personal_briefings": chat.briefings is not None,
                 "personal_quiet": chat.quiet is not None,
             },
             "sources": {

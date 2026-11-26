@@ -17,6 +17,8 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    BRIEFING_EVENING,
+    BRIEFING_MORNING,
     DEFAULT_BRIEF_TIME,
     DEFAULT_LANGUAGE,
     DEFAULT_QUIET_END,
@@ -65,6 +67,9 @@ _TEXTS: dict[str, dict[str, Any]] = {
         "day": "Добрый день!",
         "evening": "Добрый вечер!",
         "date": "Сегодня {weekday}, {day} {month}.",
+        "day_title": "🌅 Планы на день",
+        "evening_title": "🌇 Вечерняя сводка",
+        "day_summary": "Сегодня: {events} событий, {todo} задач, {lights} свет.",
         "weather": "☀️ Погода",
         "calendar": "📅 Календарь",
         "calendar_today": "📅 Сегодня",
@@ -130,6 +135,9 @@ _TEXTS: dict[str, dict[str, Any]] = {
         "day": "Good afternoon!",
         "evening": "Good evening!",
         "date": "Today is {weekday}, {day} {month}.",
+        "day_title": "🌅 Plan for the day",
+        "evening_title": "🌇 Evening report",
+        "day_summary": "Today: {events} events, {todo} tasks, {lights} lights.",
         "weather": "☀️ Weather",
         "calendar": "📅 Calendar",
         "calendar_today": "📅 Today",
@@ -248,33 +256,113 @@ async def async_build_briefing(
     *,
     mailbox: Mailbox | None = None,
     allow_cloud_for_mail: bool = False,
+    kind: str | None = None,
 ) -> str:
-    """Build the briefing text for one chat."""
+    """Build the briefing text for one chat.
+
+    ``kind`` is ``"morning"`` (plan for the day — calendar, weather, todo,
+    home, mail), ``"evening"`` (what happened today — shorter summary) or
+    ``None`` (all blocks, matching the old full briefing).
+    """
     texts = _TEXTS.get(language, _TEXTS[DEFAULT_LANGUAGE])
     now = dt_util.now()
 
     blocks = [_header(now, texts)]
-    for block in (
-        await _async_weather(hass, sources, texts),
-        await _async_calendar(hass, sources, texts, now),
-        _home_status(hass, sources, texts),
-        await _async_todo(hass, sources, texts),
-        await async_mail_digest(
-            hass,
-            sources,
-            language,
-            mailbox=mailbox,
-            allow_cloud=allow_cloud_for_mail,
-        ),
-    ):
-        if block:
-            blocks.append(block)
+
+    if kind == BRIEFING_EVENING:
+        blocks.append(_async_evening_summary(hass, sources, texts))
+    else:
+        for block in (
+            await _async_weather(hass, sources, texts),
+            await _async_calendar(hass, sources, texts, now),
+            _home_status(hass, sources, texts),
+            await _async_todo(hass, sources, texts),
+            await async_mail_digest(
+                hass,
+                sources,
+                language,
+                mailbox=mailbox,
+                allow_cloud=allow_cloud_for_mail,
+            ),
+        ):
+            if block:
+                blocks.append(block)
     return "\n\n".join(blocks)
 
 
 def texts_for(language: str) -> dict[str, Any]:
     """Return the localized briefing strings."""
     return _TEXTS.get(language, _TEXTS[DEFAULT_LANGUAGE])
+
+
+def _async_evening_summary(
+    hass: HomeAssistant, sources: BriefingSources, texts: dict[str, Any]
+) -> str:
+    """Build a short evening summary: what was on today, what is on now."""
+    lines = [texts["evening_title"]]
+
+    # Count of today's calendar events
+    today_events: int = 0
+    if sources.calendars:
+        start = dt_util.start_of_local_day(dt_util.now())
+        tomorrow = start + timedelta(days=1)
+        try:
+            response = hass.services.async_call(
+                "calendar",
+                "get_events",
+                {
+                    "start_date_time": start.isoformat(),
+                    "end_date_time": tomorrow.isoformat(),
+                },
+                target={"entity_id": list(sources.calendars)},
+                blocking=True,
+                return_response=True,
+            )
+            events = _parse_events(response or {})
+            today_events = sum(1 for event in events if start <= event[0] < tomorrow)
+        except (HomeAssistantError, Exception):
+            pass
+
+    todo_count: int = 0
+    if sources.todo:
+        try:
+            result = hass.services.async_call(
+                "todo",
+                "get_items",
+                {"entity_id": sources.todo, "status": "needs_action"},
+                blocking=True,
+                return_response=True,
+            )
+            if isinstance(result, dict):
+                entity_result = result.get(sources.todo)
+                if isinstance(entity_result, dict):
+                    items = entity_result.get("items")
+                    if isinstance(items, list):
+                        todo_count = len(items)
+        except (HomeAssistantError, Exception):
+            pass
+
+    home_light_count: int = 0
+    if sources.home:
+        from .shop import _clean
+
+        _ = _clean  # silence unused import
+        lights = 0
+        for entity_id in hass.states.async_entity_ids("light"):
+            state = hass.states.get(entity_id)
+            if state is not None and state.state == "on":
+                lights += 1
+        home_light_count = lights
+
+    parts = []
+    if today_events:
+        parts.append(texts["day_summary"].format(
+            events=today_events, todo=todo_count, lights=home_light_count
+        ))
+    if not parts:
+        parts.append(texts["all_quiet"])
+    lines.extend(f"• {part}" for part in parts)
+    return "\n".join(lines)
 
 
 async def async_calendar_day(

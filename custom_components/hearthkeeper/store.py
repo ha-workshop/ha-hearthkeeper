@@ -110,7 +110,10 @@ class ChatContext:
         data = asdict(self)
         data.pop("chat_id")
         if data.get("briefings") is not None:
-            data["briefings"] = [plan.as_dict() for plan in data["briefings"]]
+            data["briefings"] = [
+                plan if isinstance(plan, dict) else plan.as_dict()
+                for plan in data["briefings"]
+            ]
         return data
 
     @classmethod
