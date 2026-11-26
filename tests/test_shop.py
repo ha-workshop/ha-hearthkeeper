@@ -110,8 +110,8 @@ async def test_shop_lists_items_with_buttons(hass: HomeAssistant) -> None:
     assert len(transport.sent) == 1
     keyboard = transport.sent[0]["keyboard"]
     assert keyboard == [
-        [["❌ Молоко", "shop_done:uid-a"]],
-        [["❌ Хлеб", "shop_done:uid-b"]],
+        [["☐ Молоко", "shop_done:uid-a"]],
+        [["☐ Хлеб", "shop_done:uid-b"]],
     ]
 
 

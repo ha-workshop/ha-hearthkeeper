@@ -1061,6 +1061,8 @@ class Brain:
                 for plan in (chat.briefings or [])
             ],
             "brief": {
+                "enabled": bool(brief_schedule),
+                "time": brief_schedule[0][1] if brief_schedule else "",
                 "active": brief_schedule,
                 "quiet_start": quiet_start,
                 "quiet_end": quiet_end,
