@@ -35,13 +35,29 @@ from .brief import (
 from .const import DEFAULT_LANGUAGE
 from .mail import Mailbox, async_mail_digest
 
+try:
+    from .shop import ShopSkill, _clean
+except ImportError:
+    ShopSkill = None  # type: ignore[assignment,misc]
+
+    def _clean(text: str) -> str:
+        return text.strip()
+
 _LOGGER = logging.getLogger(__name__)
 
 INTENT_BRIEF: Final = "HearthkeeperBrief"
 INTENT_CALENDAR: Final = "HearthkeeperCalendar"
 INTENT_HOME: Final = "HearthkeeperHome"
 INTENT_MAIL: Final = "HearthkeeperMail"
-INTENT_TYPES: Final = (INTENT_BRIEF, INTENT_CALENDAR, INTENT_HOME, INTENT_MAIL)
+INTENT_SHOP_ADD: Final = "HearthkeeperShopAdd"
+INTENT_SHOP: Final = "HearthkeeperShop"
+INTENT_TYPES: Final = (
+    INTENT_BRIEF,
+    INTENT_CALENDAR,
+    INTENT_HOME,
+    INTENT_MAIL,
+    INTENT_SHOP_ADD,
+)
 
 SENTENCES_DIR: Final = "custom_sentences"
 SENTENCES_FILE: Final = "hearthkeeper.yaml"
@@ -55,11 +71,19 @@ _SKILL_TEXTS: dict[str, dict[str, str]] = {
         "calendar_missing": "Календари не настроены в Hearthkeeper.",
         "home_disabled": "Сводка по дому отключена в настройках Hearthkeeper.",
         "mail_missing": "Сенсоры почты не выбраны в настройках Hearthkeeper.",
+        "shop_not_configured": "Список покупок не настроен: выберите todo-список в настройках Hearthkeeper.",
+        "shop_failed": "Не получилось обратиться к списку покупок.",
+        "shop_added": "✅ Добавлено: {items}.",
+        "shop_empty_add": "Не понял, что добавить.",
     },
     "en": {
         "calendar_missing": "No calendars are configured in Hearthkeeper.",
         "home_disabled": "The home summary is disabled in the Hearthkeeper options.",
         "mail_missing": "No mail sensors are selected in the Hearthkeeper options.",
+        "shop_not_configured": "The shopping list is not configured: pick a todo list in the Hearthkeeper options.",
+        "shop_failed": "Could not reach the shopping list.",
+        "shop_added": "✅ Added: {items}.",
+        "shop_empty_add": "Nothing to add.",
     },
 }
 
@@ -127,6 +151,17 @@ _PATTERNS: dict[str, tuple[tuple[str, str, re.Pattern[str]], ...]] = {
                 r")"
             ),
         ),
+        (
+            INTENT_SHOP_ADD,
+            "",
+            re.compile(
+                r"(?:"
+                r"(?:добавь|добавить|запиши|записать|положи|клади)"
+                r"(?: в список)?(?: покупок)?"
+                r" (.+)"
+                r")"
+            ),
+        ),
     ),
     "en": (
         (
@@ -189,6 +224,17 @@ _PATTERNS: dict[str, tuple[tuple[str, str, re.Pattern[str]], ...]] = {
                 r")"
             ),
         ),
+        (
+            INTENT_SHOP_ADD,
+            "",
+            re.compile(
+                r"(?:"
+                r"(?:add|put|get)"
+                r"(?: (?:to|on) (?:the |my )?(?:list|shopping list))?"
+                r" (.+)"
+                r")"
+            ),
+        ),
     ),
 }
 
@@ -241,6 +287,16 @@ SENTENCES: dict[str, dict[str, list[dict[str, Any]]]] = {
                     "что важного в почте",
                     "проверь почту",
                     "почтовый дайджест",
+                ]
+            }
+        ],
+        INTENT_SHOP_ADD: [
+            {
+                "sentences": [
+                    "добавь {item} в список покупок",
+                    "добавь {item}",
+                    "положи {item} в список",
+                    "запиши {item}",
                 ]
             }
         ],
@@ -303,6 +359,7 @@ class SkillRequest:
 
     intent: str
     day: str = ""
+    payload: str = ""
 
 
 def normalize(text: str) -> str:
@@ -322,11 +379,13 @@ class SkillRouter:
         sources: BriefingSources,
         mailbox: Mailbox | None = None,
         allow_cloud_for_mail: bool = False,
+        shop: ShopSkill | None = None,
     ) -> None:
         self.hass = hass
         self.sources = sources
         self._mailbox = mailbox
         self._allow_cloud_for_mail = allow_cloud_for_mail
+        self._shop = shop
 
     @staticmethod
     def match(text: str, language: str) -> SkillRequest | None:

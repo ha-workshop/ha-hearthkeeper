@@ -13,19 +13,15 @@ be picked.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Collection, Mapping
 from typing import Any
 
-from .store import ChatContext
-
-_TIME = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$")
+from .store import ChatContext, BriefingPlan, normalise_time
 
 PREF_KEYS = frozenset(
     (
         "reset",
-        "brief_enabled",
-        "brief_time",
+        "briefings",
         "quiet",
         "weather",
         "calendars",
@@ -41,14 +37,6 @@ class InvalidPreference(ValueError):
     def __init__(self, key: str) -> None:
         super().__init__(key)
         self.key = key
-
-
-def normalise_time(value: object) -> str | None:
-    """Return ``HH:MM`` for a valid ``HH:MM`` or ``HH:MM:SS`` string."""
-    if not isinstance(value, str):
-        return None
-    match = _TIME.match(value.strip())
-    return f"{match.group(1)}:{match.group(2)}" if match else None
 
 
 def apply_preferences(
@@ -75,12 +63,19 @@ def apply_preferences(
         if key == "reset":
             if value is not True:
                 raise InvalidPreference(key)
-        elif key == "brief_enabled":
-            if value is not None and not isinstance(value, bool):
+        elif key == "briefings":
+            if value is None:
+                updates[key] = None
+            elif not isinstance(value, list):
                 raise InvalidPreference(key)
-            updates[key] = value
-        elif key == "brief_time":
-            updates[key] = None if value is None else _time(key, value)
+            else:
+                plans: list[BriefingPlan] = []
+                for raw in value:
+                    plan = _as_briefing_plan(raw)
+                    if plan is None:
+                        raise InvalidPreference(key)
+                    plans.append(plan)
+                updates[key] = plans if plans else []
         elif key == "quiet":
             updates[key] = _quiet(value)
         elif key == "weather":
@@ -108,11 +103,23 @@ def apply_preferences(
     return sorted(str(key) for key in patch)
 
 
-def _time(key: str, value: object) -> str:
-    normalised = normalise_time(value)
-    if normalised is None:
-        raise InvalidPreference(key)
-    return normalised
+def _as_briefing_plan(raw: object) -> BriefingPlan | None:
+    """Return a validated plan from a page patch."""
+    if not isinstance(raw, dict):
+        return None
+    time = normalise_time(raw.get("time"))
+    if time is None:
+        return None
+    kind = raw.get("kind")
+    if not isinstance(kind, str) or kind not in ("morning", "evening"):
+        return None
+    enabled = raw.get("enabled", True)
+    if not isinstance(enabled, bool):
+        return None
+    name = raw.get("name", "")
+    if not isinstance(name, str) or len(name) > 40:
+        return None
+    return BriefingPlan(kind=kind, time=time, name=name.strip(), enabled=enabled)
 
 
 def _quiet(value: object) -> list[str] | None:
@@ -121,6 +128,13 @@ def _quiet(value: object) -> list[str] | None:
     if not isinstance(value, list) or len(value) not in (0, 2):
         raise InvalidPreference("quiet")
     return [_time("quiet", item) for item in value]
+
+
+def _time(key: str, value: object) -> str:
+    normalised = normalise_time(value)
+    if normalised is None:
+        raise InvalidPreference(key)
+    return normalised
 
 
 def _subset(key: str, value: object, pool: Collection[str]) -> list[str]:

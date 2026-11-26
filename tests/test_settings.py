@@ -9,9 +9,8 @@ import pytest
 from custom_components.hearthkeeper.settings import (
     InvalidPreference,
     apply_preferences,
-    normalise_time,
 )
-from custom_components.hearthkeeper.store import ChatContext
+from custom_components.hearthkeeper.store import BriefingPlan, ChatContext, normalise_time
 
 POOLS: dict[str, Any] = {
     "weather_ids": ["weather.home", "weather.dacha"],
@@ -39,8 +38,10 @@ def test_preferences_are_stored_on_the_chat() -> None:
     changed = apply_preferences(
         chat,
         {
-            "brief_enabled": True,
-            "brief_time": "06:30:00",
+            "briefings": [
+                {"kind": "morning", "time": "06:30", "enabled": True, "name": ""},
+                {"kind": "evening", "time": "20:00", "enabled": True, "name": "Вечер"},
+            ],
             "quiet": ["22:00", "06:00"],
             "weather": "weather.dacha",
             "calendars": ["calendar.work", "calendar.work"],
@@ -50,20 +51,22 @@ def test_preferences_are_stored_on_the_chat() -> None:
         **POOLS,
     )
 
-    assert changed == [
-        "brief_enabled",
-        "brief_time",
+    assert sorted(changed) == [
+        "briefings",
         "calendars",
         "home",
         "mail",
         "quiet",
         "weather",
     ]
-    assert (chat.brief_enabled, chat.brief_time, chat.quiet) == (
-        True,
-        "06:30",
-        ["22:00", "06:00"],
-    )
+    assert chat.briefings is not None
+    assert len(chat.briefings) == 2
+    assert chat.briefings[0].kind == "morning"
+    assert chat.briefings[0].time == "06:30"
+    assert chat.briefings[1].kind == "evening"
+    assert chat.briefings[1].time == "20:00"
+    assert chat.briefings[1].name == "Вечер"
+    assert chat.quiet == ["22:00", "06:00"]
     assert chat.sources == {
         "weather": "weather.dacha",
         "calendars": ["calendar.work"],
@@ -86,8 +89,9 @@ def test_preferences_are_stored_on_the_chat() -> None:
         None,
         {},
         {"pipeline_id": "x"},
-        {"brief_enabled": "yes"},
-        {"brief_time": "8am"},
+        {"briefings": "yes"},
+        {"briefings": [{"kind": "morning", "time": "bad"}]},
+        {"briefings": [{"time": "08:00"}]},
         {"quiet": ["22:00"]},
         {"weather": "weather.unknown"},
         # Private data outside what the integration options share.
@@ -101,12 +105,9 @@ def test_preferences_are_stored_on_the_chat() -> None:
 def test_bad_preferences_change_nothing(patch: Any) -> None:
     """One bad value refuses the whole patch."""
     chat = _chat()
-    bad = dict(patch or {})
-    if bad:
-        bad = {"brief_time": "07:00", **bad}
 
     with pytest.raises(InvalidPreference):
-        apply_preferences(chat, bad or patch, **POOLS)
+        apply_preferences(chat, patch or {}, **POOLS)
 
     assert not chat.has_prefs
 
@@ -116,12 +117,20 @@ def test_preferences_survive_storage() -> None:
     chat = _chat()
     apply_preferences(
         chat,
-        {"brief_enabled": False, "quiet": [], "calendars": ["calendar.family"]},
+        {
+            "briefings": [{"kind": "evening", "time": "19:30", "enabled": False}],
+            "quiet": [],
+            "calendars": ["calendar.family"],
+        },
         **POOLS,
     )
 
     restored = ChatContext.from_dict(42, chat.as_dict())
 
-    assert restored.brief_enabled is False
+    assert restored.briefings is not None
+    assert len(restored.briefings) == 1
+    assert restored.briefings[0].kind == "evening"
+    assert restored.briefings[0].time == "19:30"
+    assert restored.briefings[0].enabled is False
     assert restored.quiet == []
     assert restored.sources == {"calendars": ["calendar.family"]}

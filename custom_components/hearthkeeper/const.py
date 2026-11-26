@@ -49,6 +49,13 @@ REPLY_MODE_VOICE: Final = "voice"
 REPLY_MODE_BOTH: Final = "both"
 REPLY_MODES: Final = (REPLY_MODE_TEXT, REPLY_MODE_VOICE, REPLY_MODE_BOTH)
 
+# Scheduled briefings. Everyone may keep a few of them with their own time:
+# a morning one with the plan for the day and an evening one with the results.
+BRIEFING_MORNING: Final = "morning"
+BRIEFING_EVENING: Final = "evening"
+BRIEFING_KINDS: Final = (BRIEFING_MORNING, BRIEFING_EVENING)
+MAX_BRIEFINGS: Final = 5
+
 LANGUAGES: Final = ("ru", "en")
 
 DEFAULT_LANGUAGE: Final = "ru"

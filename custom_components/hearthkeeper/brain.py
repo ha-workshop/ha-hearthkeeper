@@ -33,7 +33,8 @@ from .reminders import (
     parse_reminder,
     parse_reminder_command,
 )
-from .settings import apply_preferences, normalise_time
+from .settings import apply_preferences
+from .store import normalise_time
 from .shop import ShopSkill
 from .skills import SkillRouter
 from .stats import RuntimeStats
