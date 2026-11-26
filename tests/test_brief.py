@@ -106,7 +106,7 @@ async def test_full_briefing(hass: HomeAssistant) -> None:
     assert "• весь день — Отпуск" in text
     assert "Завтра:" in text
     assert "Завтрашнее" in text
-    assert "свет включён: 1" in text
+    assert "свет включён: Кухня" in text
     assert "Окно" in text
     assert "Гостиная +22 °C" in text
     assert "• Молоко" in text
@@ -133,7 +133,39 @@ async def test_broken_calendar_does_not_break_the_briefing(
     )
 
     assert "📅 Календарь: недоступно" in text
-    assert "свет включён: 1" in text
+    assert "свет включён: Кухня" in text
+
+
+async def test_home_status_skips_screens_and_lists_real_lights(
+    hass: HomeAssistant,
+) -> None:
+    """Screens and backlights are not room lights, and names are shown."""
+
+    hass.states.async_set("light.kitchen", "on", {"friendly_name": "Кухня"})
+    hass.states.async_set("light.hall", "on", {"friendly_name": "Прихожая"})
+    hass.states.async_set("light.bedroom", "on", {"friendly_name": "Спальня"})
+    hass.states.async_set("light.study", "on", {"friendly_name": "Кабинет"})
+    hass.states.async_set(
+        "light.photo_frame_screen", "on", {"friendly_name": "Photo Frame Экран"}
+    )
+    hass.states.async_set(
+        "light.switch_backlight", "on", {"friendly_name": "Подсветка"}
+    )
+    hass.states.async_set("light.off", "off", {"friendly_name": "Выключен"})
+
+    text = await async_build_briefing(hass, BriefingSources(home=True), "ru")
+
+    assert "свет включён: 4 — Кухня, Прихожая, Спальня … и ещё 1" in text
+    assert "Экран" not in text
+
+
+async def test_home_status_english_light_names(hass: HomeAssistant) -> None:
+    """The English briefing names a single light instead of counting it."""
+    hass.states.async_set("light.kitchen", "on", {"friendly_name": "Kitchen"})
+
+    text = await async_build_briefing(hass, BriefingSources(home=True), "en")
+
+    assert "light on: Kitchen" in text
 
 
 async def test_quiet_home_and_empty_mail(hass: HomeAssistant) -> None:

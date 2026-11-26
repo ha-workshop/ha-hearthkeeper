@@ -30,6 +30,20 @@ MAX_EVENTS = 6
 MAX_TODO_ITEMS = 5
 MAX_OPENINGS = 3
 MAX_CLIMATES = 2
+MAX_LIGHTS = 3
+
+# Screens and indicator LEDs are exposed as ``light`` entities by some
+# integrations, but they are not room lighting and only make the briefing
+# count look wrong.
+_TECHNICAL_LIGHT_SUFFIXES = ("_screen", "_status", "_backlight")
+_TECHNICAL_LIGHT_WORDS = (
+    "indicator",
+    "индикатор",
+    "screen",
+    "экран",
+    "backlight",
+    "подсветка кнопок",
+)
 
 _OPENING_CLASSES = frozenset(("door", "window", "garage_door", "opening"))
 
@@ -64,7 +78,8 @@ _TEXTS: dict[str, dict[str, Any]] = {
         "no_todo": "список пуст",
         "no_mail": "новых писем нет",
         "all_quiet": "всё спокойно",
-        "lights": "свет включён: {count}",
+        "light": "свет включён: {items}",
+        "lights": "свет включён: {count} — {items}",
         "openings": "открыто: {items}",
         "more": "… и ещё {count}",
         "unavailable": "{section}: недоступно",
@@ -128,7 +143,8 @@ _TEXTS: dict[str, dict[str, Any]] = {
         "no_todo": "the list is empty",
         "no_mail": "no new mail",
         "all_quiet": "all quiet",
-        "lights": "lights on: {count}",
+        "light": "light on: {items}",
+        "lights": "lights on: {count} — {items}",
         "openings": "open: {items}",
         "more": "… and {count} more",
         "unavailable": "{section}: unavailable",
@@ -461,11 +477,14 @@ def _home_status(
     if not sources.home:
         return None
 
-    lights = sum(
-        1
-        for entity_id in hass.states.async_entity_ids("light")
-        if (state := hass.states.get(entity_id)) is not None and state.state == "on"
-    )
+    light_names: list[str] = []
+    for entity_id in hass.states.async_entity_ids("light"):
+        state = hass.states.get(entity_id)
+        if state is None or state.state != "on" or _is_technical_light(state):
+            continue
+        name = _name(state)
+        if name not in light_names:
+            light_names.append(name)
 
     openings: list[str] = []
     for state in hass.states.async_all("binary_sensor"):
@@ -487,8 +506,10 @@ def _home_status(
             climates.append(f"{_name(state)} {current:+d} {unit}")
 
     lines: list[str] = []
-    if lights:
-        lines.append(texts["lights"].format(count=lights))
+    if light_names:
+        shown = _join_limited(light_names, MAX_LIGHTS, texts)
+        key = "light" if len(light_names) == 1 else "lights"
+        lines.append(texts[key].format(count=len(light_names), items=shown))
     if openings:
         shown = _join_limited(openings, MAX_OPENINGS, texts)
         lines.append(texts["openings"].format(items=shown))
@@ -561,6 +582,14 @@ def _name(state: Any) -> str:
     """Return a human friendly name of an entity state."""
     name = state.attributes.get("friendly_name")
     return name if isinstance(name, str) and name else state.entity_id
+
+
+def _is_technical_light(state: Any) -> bool:
+    """Tell screens and indicator LEDs apart from actual room lighting."""
+    if state.entity_id.lower().endswith(_TECHNICAL_LIGHT_SUFFIXES):
+        return True
+    name = _name(state).lower()
+    return any(word in name for word in _TECHNICAL_LIGHT_WORDS)
 
 
 __all__ = [

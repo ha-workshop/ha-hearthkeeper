@@ -158,7 +158,7 @@ async def test_home_skill(hass: HomeAssistant) -> None:
     answer = await router.async_run(SkillRequest(INTENT_HOME), "ru")
 
     assert "🏠 Дом" in answer
-    assert "свет включён: 1" in answer
+    assert "свет включён: Кухня" in answer
     assert "Входная дверь" in answer
 
 
