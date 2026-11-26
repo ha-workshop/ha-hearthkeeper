@@ -89,7 +89,7 @@ svg{display:block}
 .row-sub.good::before{content:"⚡ ";}
 .row-value{color:var(--hint);font-size:16px;white-space:nowrap;max-width:40%;overflow:hidden;text-overflow:ellipsis}
 .chev{color:var(--hint);flex:none}
-.row.danger .row-title{color:var(--danger)}
+.row.danger .row-title,.row.danger .row-icon{color:var(--danger)}
 .row.link .row-title{color:var(--accent-2);font-weight:600}
 .add{
   width:32px;height:32px;flex:none;display:grid;place-items:center;color:var(--text);opacity:.9;
@@ -161,6 +161,8 @@ svg{display:block}
 .switch span{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25);transition:transform .2s}
 .switch.on{background:var(--good)}
 .switch.on span{transform:translateX(20px)}
+.switch-hit{display:flex;flex:none;padding:8px 0 8px 12px;margin:-8px 0}
+.row.link .row-icon{color:var(--accent-2)}
 .badge{font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:2px;background:rgba(139,92,246,.18);color:var(--accent-2)}
 .time-box{display:flex;gap:10px;padding:14px 16px;align-items:center}
 .time-box input{flex:1;min-width:0;font:600 22px/1 inherit;font-family:inherit;color:var(--text);background:var(--card-2);border:0;border-radius:12px;padding:10px 12px;color-scheme:inherit}
@@ -346,9 +348,9 @@ svg{display:block}
       brief_morning: "Утренняя", brief_morning_sub: "план на день",
       brief_evening: "Вечерняя", brief_evening_sub: "итог дня",
       no_briefings: "Нет сводок", no_briefings_sub: "добавьте утреннюю или вечернюю",
-      add_briefing: "➕ Добавить сводку", brief_on: "Активна",
+      add_briefing: "Добавить сводку",
       brief_name: "Название", brief_name_ph: "например «Утро на даче»",
-      delete_briefing: "🗑 Удалить сводку",
+      delete_briefing: "Удалить сводку", confirm_delete_briefing: "Удалить сводку «{name}»?",
       quiet: "Тихие часы", quiet_sub: "напоминания приходят без звука",
       voice_replies: "Голосовые ответы", voice_on_sub: "бот отвечает голосом", voice_off_sub: "сейчас — только текст",
       rem_count: "Напоминания", rem_active: "активных: {n}",
@@ -371,14 +373,14 @@ svg{display:block}
       confirm_cancel: "Отменить все напоминания?",
       account_note: "Настройки ниже — ваши личные. У других членов семьи свои.",
       account_id: "ID {id}",
-      my_brief: "Моя сводка", my_brief_desc: "Когда и о чём бот рассказывает вам по утрам",
-      my_quiet: "Мои тихие часы", my_quiet_desc: "Утренняя сводка не приходит, напоминания — без звука",
+      my_brief: "Моя сводка", my_brief_desc: "Когда и о чём бот рассказывает вам утром и вечером",
+      my_quiet: "Мои тихие часы", my_quiet_desc: "Сводки не приходят, напоминания — без звука",
       shared: "Общие настройки", shared_desc: "Одинаковы для всех. Меняются в Home Assistant → Hearthkeeper → Настроить",
       brief_on: "Присылать сводку", time: "Время", from: "С", to: "До",
       quiet_on: "Тихие часы",
       none: "Не показывать", save: "Сохранить", saved: "Сохранено",
       pool_empty: "Администратор пока не добавил их в настройках интеграции",
-      max_voice: "Длина голосового", sec: "{n} с", keep_audio: "Хранить записи", cloud_mail: "Почта через облачный ИИ",
+      max_voice: "Длина голосового", sec: "{n} с", keep_audio: "Хранить записи", cloud_mail: "Облачный ИИ", cloud_mail_sub: "для разбора почты",
       refresh: "Обновить", refresh_sub: "загрузить свежие настройки из HA", refreshed: "Обновлено",
       reset_prefs: "Сбросить мои настройки", reset_done: "Вернулись к общим настройкам",
       confirm_reset: "Вернуть сводку, тихие часы и источники к общим настройкам?",
@@ -407,9 +409,9 @@ svg{display:block}
       brief_morning: "Morning", brief_morning_sub: "plan for the day",
       brief_evening: "Evening", brief_evening_sub: "daily report",
       no_briefings: "No briefings", no_briefings_sub: "add a morning or evening one",
-      add_briefing: "➕ Add briefing", brief_on: "Active",
+      add_briefing: "Add briefing",
       brief_name: "Name", brief_name_ph: "e.g. «Weekend morning»",
-      delete_briefing: "🗑 Delete",
+      delete_briefing: "Delete briefing", confirm_delete_briefing: "Delete the «{name}» briefing?",
       quiet: "Quiet hours", quiet_sub: "reminders arrive silently",
       voice_replies: "Voice replies", voice_on_sub: "the bot answers by voice", voice_off_sub: "text only for now",
       rem_count: "Reminders", rem_active: "active: {n}",
@@ -432,14 +434,14 @@ svg{display:block}
       confirm_cancel: "Cancel all reminders?",
       account_note: "The settings below are yours. Everyone in the family has their own.",
       account_id: "ID {id}",
-      my_brief: "My briefing", my_brief_desc: "When and what the bot tells you in the morning",
-      my_quiet: "My quiet hours", my_quiet_desc: "No morning briefing, reminders arrive silently",
+      my_brief: "My briefing", my_brief_desc: "When and what the bot tells you in the morning and evening",
+      my_quiet: "My quiet hours", my_quiet_desc: "No briefings, reminders arrive silently",
       shared: "Shared settings", shared_desc: "Same for everyone. Change them in Home Assistant → Hearthkeeper → Configure",
       brief_on: "Send the briefing", time: "Time", from: "From", to: "To",
       quiet_on: "Quiet hours",
       none: "Do not show", save: "Save", saved: "Saved",
       pool_empty: "The admin has not added any in the integration options yet",
-      max_voice: "Voice message length", sec: "{n} s", keep_audio: "Keep recordings", cloud_mail: "Mail via cloud AI",
+      max_voice: "Voice message length", sec: "{n} s", keep_audio: "Keep recordings", cloud_mail: "Cloud AI", cloud_mail_sub: "for reading mail",
       refresh: "Refresh", refresh_sub: "reload settings from HA", refreshed: "Refreshed",
       reset_prefs: "Reset my settings", reset_done: "Back to the shared settings",
       confirm_reset: "Reset the briefing, quiet hours and sources to the shared settings?",
@@ -479,7 +481,10 @@ svg{display:block}
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/>',
     bell: '<path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
-    edit: '<path d="M16 3a2 2 0 0 1 2.83 0l2.17 2.17a2 2 0 0 1 0 2.83L7 22.66 3 24l1.34-4Z"/>',
+    sunrise: '<path d="M4 18h16M7 18a5 5 0 0 1 10 0M12 4v4M5.6 9.6 7 11M18.4 9.6 17 11M2 14h2M20 14h2"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    edit: '<path d="M4 20h4L19 9a2.83 2.83 0 0 0-4-4L4 16Z"/><path d="m13.5 6.5 4 4"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
   };
 
   // ---------- helpers ----------
@@ -506,7 +511,12 @@ svg{display:block}
   function register(fn) { const id = "a" + (++actionSeq); actions[id] = fn; return id; }
   document.addEventListener("click", e => {
     const el = e.target.closest("[data-act]");
-    if (el && actions[el.dataset.act]) { haptic(); actions[el.dataset.act](e); }
+    if (!el || !actions[el.dataset.act]) return;
+    // Flip a switch at once; the next render (or a rollback on error) settles it.
+    // A row holding a separate switch target (.switch-hit) opens an editor instead.
+    const s = el.matches(".switch-hit") || !el.querySelector(".switch-hit") ? el.querySelector(".switch") : null;
+    if (s) { const on = s.classList.toggle("on"); s.setAttribute("aria-checked", on ? "true" : "false"); }
+    haptic(); actions[el.dataset.act](e);
   });
 
   // ---------- API ----------
@@ -537,7 +547,7 @@ svg{display:block}
     briefings: [{id: "d1", kind: "morning", time: "08:00", name: "", enabled: true}],
     brief: {active: [["morning", "08:00"]], quiet_start: "23:00", quiet_end: "07:00", has_personal_briefings: false, personal_quiet: false},
     sources: {weather: "Forecast Home", weather_id: "weather.home", calendars: ["Family", "Work"], calendar_ids: ["calendar.family", "calendar.work"],
-              todo: "Shopping List", home: true, personal: false},
+              todo: "Shopping List", mail: true, mail_ids: ["sensor.inbox"], home: true, personal: false},
     choices: {weather: [{id: "weather.home", name: "Forecast Home"}],
               calendars: [{id: "calendar.family", name: "Family"}, {id: "calendar.work", name: "Work"}],
               mail: [{id: "sensor.inbox", name: "Inbox"}]},
@@ -646,7 +656,7 @@ svg{display:block}
       row({icon: ICON.line(P.cal), title: esc(t("calendars")), sub: esc(src.calendars.join(", ")),
            right: src.calendars.length ? `<span class="chip ok">${esc(t("cal_n", {n: src.calendars.length}))}</span>` : val(false)}) +
       row({icon: ICON.line(P.cart), title: esc(t("todo")), sub: esc(src.todo || ""), right: val(src.todo)}) +
-      <!-- mail section intentionally omitted -->
+      row({icon: ICON.line(P.mail), title: esc(t("mail")), right: val(src.mail)}) +
       row({icon: ICON.line(P.house), title: esc(t("home_state")), right: val(src.home)});
     $("schedule").innerHTML =
       row({icon: ICON.line(P.clock), title: esc(t("brief_daily")), value: esc(hasBriefings ? briefSummary() : t("off"))}) +
@@ -670,28 +680,33 @@ svg{display:block}
       briefHtml += plans.map(p => {
         const kindLabel = t("brief_" + p.kind);
         const title = (p.name || kindLabel);
-        const sub = p.time + " · " + kindLabel;
-        return row({icon: sw(p.enabled), title: esc(title), sub: esc(sub), chev: true,
+        const sub = p.name ? p.time + " · " + kindLabel : p.time;
+        const idx = plans.indexOf(p);
+        const toggle = register(e => { e.stopPropagation(); toggleBriefing(idx); });
+        return row({icon: ICON.line(p.kind === "evening" ? P.moon : P.sunrise), title: esc(title), sub: esc(sub),
+          right: `<span class="switch-hit" data-act="${toggle}">${sw(p.enabled)}</span>`,
           onClick: () => editBriefing(p)});
       }).join("");
     } else {
       briefHtml += row({title: esc(t("no_briefings")), sub: esc(t("no_briefings_sub"))});
     }
-    briefHtml += row({title: esc(t("add_briefing")), cls: "link", chev: true,
+    briefHtml += row({icon: ICON.line(P.plus), title: esc(t("add_briefing")), cls: "link", chev: true,
       onClick: openAddBriefing});
 
     briefHtml += row({icon: ICON.line(P.sun), title: esc(t("weather")) + mine(src.personal), value: esc(src.weather || t("none")), chev: true,
       onClick: openWeather});
     briefHtml += row({icon: ICON.line(P.cal), title: esc(t("calendars")), value: esc(ids.length ? t("cal_n", {n: ids.length}) : t("none")), chev: true,
       onClick: () => openMulti("calendars", t("calendars"), state.choices.calendars, ids)});
+    briefHtml += row({icon: ICON.line(P.mail), title: esc(t("mail")), value: esc(mailIds.length ? t("cal_n", {n: mailIds.length}) : t("none")), chev: true,
+      onClick: () => openMulti("mail", t("mail"), state.choices.mail, mailIds)});
     briefHtml += row({icon: ICON.line(P.house), title: esc(t("home_state")), right: sw(src.home),
-      onClick: () => setPrefs({home: !src.home})});
+      onClick: () => setPrefs({home: !src.home}, true)});
     $("settings-brief").innerHTML = briefHtml;
 
     const quietOn = !!(state.brief.quiet_start && state.brief.quiet_end);
     $("settings-quiet").innerHTML =
       row({icon: ICON.line(P.moon), title: esc(t("quiet_on")) + mine(state.brief.personal_quiet), right: sw(quietOn),
-           onClick: () => setPrefs({quiet: quietOn ? [] : ["23:00", "07:00"]})}) +
+           onClick: () => setPrefs({quiet: quietOn ? [] : ["23:00", "07:00"]}, true)}) +
       (quietOn
         ? row({icon: ICON.line(P.clock), title: esc(t("from")), value: esc(state.brief.quiet_start), chev: true,
                onClick: () => openTime(t("from"), state.brief.quiet_start, v => setPrefs({quiet: [v, state.brief.quiet_end]}))}) +
@@ -708,7 +723,7 @@ svg{display:block}
       row({icon: ICON.line(P.mic), title: esc(t("stt")), value: esc(state.stt ? t("on") : t("off"))}) +
       row({icon: ICON.line(P.speaker), title: esc(t("tts")), value: esc(state.tts ? t("on") : t("off"))}) +
       row({icon: ICON.line(P.mic), title: esc(t("max_voice")), value: esc(t("sec", {n: state.shared.max_voice_seconds}))}) +
-      <!-- cloud mail info omitted -->
+      row({icon: ICON.line(P.mail), title: esc(t("cloud_mail")), sub: esc(t("cloud_mail_sub")), value: esc(state.shared.allow_cloud_for_mail ? t("on") : t("off"))});
     $("settings-app").innerHTML =
       row({icon: ICON.line(P.globe), title: esc(t("language")), value: lang === "ru" ? "Русский" : "English"}) +
       row({icon: ICON.line(P.bot), title: esc(t("bot")), value: esc(state.bot_username ? "@" + state.bot_username : "—")}) +
@@ -720,7 +735,7 @@ svg{display:block}
   // ---------- actions ----------
   async function apply(promise) {
     try { const data = await promise; if (data.state) { state = data.state; render(); } haptic("ok"); return true; }
-    catch (err) { fail(err); return false; }
+    catch (err) { fail(err); render(); return false; }
   }
   async function runCommand(command, args) {
     try { await api("command", {command, args: args || []}); haptic("ok"); toast(t("sent")); }
@@ -734,8 +749,8 @@ svg{display:block}
     else go();
   }
 
-  const sw = on => `<span class="switch ${on ? "on" : ""}"><span></span></span>`;
-  async function setPrefs(prefs) { if (await apply(api("set_prefs", {prefs}))) toast(t("saved")); }
+  const sw = on => `<span class="switch ${on ? "on" : ""}" role="switch" aria-checked="${on ? "true" : "false"}"><span></span></span>`;
+  async function setPrefs(prefs, quiet) { const ok = await apply(api("set_prefs", {prefs})); if (ok && !quiet) toast(t("saved")); return ok; }
   function resetPrefs() {
     const go = async () => { if (await apply(api("set_prefs", {prefs: {reset: true}}))) toast(t("reset_done")); };
     if (tg && tg.showConfirm && !preview) tg.showConfirm(t("confirm_reset"), ok => ok && go());
@@ -749,8 +764,11 @@ svg{display:block}
       chev: true,
       onClick: async () => {
         closeSheet();
-        const newPlan = {kind: k, time: "08:00", enabled: true, name: ""};
-        await setPrefs({briefings: (state.briefings || []).concat([newPlan])});
+        const time = k === "evening" ? "20:00" : "08:00";
+        const newPlan = {kind: k, time, enabled: true, name: ""};
+        const idx = (state.briefings || []).length;
+        if (await setPrefs({briefings: (state.briefings || []).concat([newPlan])}, true))
+          openTime(t("time"), time, v => updateBriefing(idx, {time: v}));
       },
     })).join(""));
   }
@@ -758,19 +776,25 @@ svg{display:block}
     const idx = (state.briefings || []).findIndex(p => p.id === plan.id);
     if (idx < 0) return;
     const html =
-      row({icon: sw(plan.enabled), title: esc(t("brief_on")),
+      row({icon: ICON.line(P.bell), title: esc(t("brief_on")), right: sw(plan.enabled),
            onClick: async () => { closeSheet(); await toggleBriefing(idx); }}) +
       row({icon: ICON.line(P.clock), title: esc(t("time")), value: esc(plan.time), chev: true,
            onClick: () => { closeSheet(); openTime(t("time"), plan.time, v => updateBriefing(idx, {time: v})); }}) +
       row({icon: ICON.line(P.edit), title: esc(t("brief_name")), value: esc(plan.name || t("brief_" + plan.kind)), chev: true,
            onClick: () => { closeSheet(); openText(t("brief_name"), plan.name, v => updateBriefing(idx, {name: v})); }}) +
-      row({title: esc(t("delete_briefing")), cls: "danger", onClick: async () => { closeSheet(); await deleteBriefing(idx); }});
+      row({icon: ICON.line(P.trash), title: esc(t("delete_briefing")), cls: "danger", onClick: () => {
+        closeSheet();
+        const go = () => deleteBriefing(idx);
+        const q = t("confirm_delete_briefing", {name: plan.name || t("brief_" + plan.kind)});
+        if (tg && tg.showConfirm && !preview) tg.showConfirm(q, ok => ok && go());
+        else go();
+      }});
     openSheet(t("brief_" + plan.kind), html);
   }
   async function toggleBriefing(idx) {
     const plans = (state.briefings || []).slice();
     plans[idx] = {...plans[idx], enabled: !plans[idx].enabled};
-    return setPrefs({briefings: plans});
+    return setPrefs({briefings: plans}, true);
   }
   async function updateBriefing(idx, patch) {
     const plans = (state.briefings || []).slice();

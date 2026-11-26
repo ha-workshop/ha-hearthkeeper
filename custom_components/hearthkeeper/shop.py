@@ -42,8 +42,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "need_items": "Не понял, что добавить. Пример: /shop add молоко, хлеб",
         "need_item": "Не понял, что удалить. Пример: /shop del молоко",
         "confirm_remove": "Удалить «{item}» из списка?",
-        "confirm_yes": "🗑 Удалить",
-        "confirm_no": "❌ Отмена",
+        "confirm_yes": "✓ Удалить",
+        "confirm_no": "✗ Отмена",
         "cancelled": "Отменено.",
         "expired": "Кнопка устарела, повторите /shop del.",
         "not_configured": (
@@ -69,7 +69,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "need_item": "Nothing to remove. Example: /shop del milk",
         "confirm_remove": "Remove “{item}” from the list?",
         "confirm_yes": "🗑 Remove",
-        "confirm_no": "❌ Cancel",
+        "confirm_no": "✗ Cancel",
         "cancelled": "Cancelled.",
         "expired": "This button is stale, run /shop del again.",
         "not_configured": (
@@ -357,7 +357,7 @@ class ShopSkill:
                 # Telegram would reject the whole keyboard; show the item
                 # without a button instead of breaking the list.
                 continue
-            keyboard.append([[f"❌ {_clean(summary)}"[:64], payload]])
+            keyboard.append([[f"☐ {_clean(summary)}"[:64], payload]])
         return keyboard
 
     async def _reply(self, message: IncomingMessage, text: str, language: str) -> None:
