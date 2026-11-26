@@ -70,6 +70,19 @@ _DATA_FILE_PATH = "file_path"
 # Telegram rejects inline keyboard payloads longer than 64 bytes.
 CALLBACK_DATA_LIMIT = 64
 
+# Commands shown in the Telegram bot menu. Updated automatically on every start.
+_DEFAULT_COMMANDS: list[tuple[str, str]] = [
+    ("help", "Справка · Help"),
+    ("new", "Новый разговор · New conversation"),
+    ("brief", "Сводка дня · Daily briefing"),
+    ("voice", "Голос on/off/both · Voice"),
+    ("shop", "Список покупок · Shopping list"),
+    ("mail", "Почта · Mail"),
+    ("remind", "Напоминание (20m) · Reminder"),
+    ("model", "Сменить агента · Switch agent"),
+    ("web", "Приложение · Mini App"),
+]
+
 
 class MessageKind(StrEnum):
     """Kind of an incoming Telegram message."""
@@ -308,8 +321,12 @@ class Transport:
         ):
             return
         username = bot.get(_DATA_BOT_USERNAME)
-        if isinstance(username, str):
+        if isinstance(username, str) and username != self._bot_username:
             self._bot_username = username
+            _LOGGER.debug("Learnt bot username: %s", username)
+            self.hass.async_create_task(
+                self.async_set_my_commands(), "hearthkeeper bot commands"
+            )
 
         message = parse_event(kind, data)
         if message is None or not self._accept(message) or self._is_duplicate(message):
@@ -689,6 +706,38 @@ class Transport:
             )
             return False
         return True
+
+    async def async_set_my_commands(self) -> None:
+        """Update the bot's command list via the Telegram Bot API.
+
+        Called once on start so every chat sees the current commands without
+        the user having to talk to BotFather.
+        """
+        if not self._bot_token:
+            return
+        payload = {
+            "commands": [
+                {"command": cmd, "description": desc} for cmd, desc in _DEFAULT_COMMANDS
+            ]
+        }
+        session = async_get_clientsession(self.hass)
+        try:
+            async with asyncio.timeout(15):
+                response = await session.post(
+                    f"https://api.telegram.org/bot{self._bot_token}/setMyCommands",
+                    json=payload,
+                )
+                result = await response.json(content_type=None)
+        except (TimeoutError, aiohttp.ClientError, ValueError) as err:
+            _LOGGER.debug(
+                "Could not update bot commands (%s)", type(err).__name__
+            )
+            return
+        if not isinstance(result, dict) or not result.get("ok"):
+            description = (
+                result.get("description") if isinstance(result, dict) else None
+            )
+            _LOGGER.debug("Telegram refused command update (%s)", description)
 
     async def async_send_chat_action(
         self, chat_id: int, action: str = "typing", *, thread_id: int | None = None
