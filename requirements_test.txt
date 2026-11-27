@@ -1,1 +1,3 @@
 pytest-homeassistant-custom-component
+# Personal iCal calendars; the same range as manifest.json requirements.
+ical>=13.2.0
