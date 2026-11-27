@@ -68,7 +68,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "need_items": "Nothing to add. Example: /shop add milk, bread",
         "need_item": "Nothing to remove. Example: /shop del milk",
         "confirm_remove": "Remove “{item}” from the list?",
-        "confirm_yes": "🗑 Remove",
+        "confirm_yes": "✓ Remove",
         "confirm_no": "✗ Cancel",
         "cancelled": "Cancelled.",
         "expired": "This button is stale, run /shop del again.",

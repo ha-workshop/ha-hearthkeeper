@@ -33,7 +33,15 @@
           "brief_calendars": "Calendars",
           "brief_weather": "Weather entity",
           "brief_mail": "Mail sensors",
-          "brief_home": "Home status"
+          "brief_home": "Home status",
+          "admins": "Mini App admins",
+          "connection_repositories": "Connection plugins",
+          "brief_chats": "Who gets the shared briefing",
+          "allow_cloud_for_mail": "AI summary for mail",
+          "keep_audio": "Keep original audio",
+          "quiet_end": "Quiet hours start (07:00)",
+          "quiet_start": "Quiet hours start (23:00)",
+          "users": "Bot users"
         },
         "data_description": {
           "pipeline_id": "Assist pipeline from Settings > Voice assistants. It already holds the conversation agent, STT, TTS and language. Choose none to echo messages back.",
@@ -47,12 +55,21 @@
           "brief_calendars": "Calendars shown under Today and Tomorrow. Leave empty to skip the section.",
           "brief_weather": "Weather entity shown in the briefing. Leave empty to skip the section.",
           "brief_mail": "IMAP sensors with unread counters. Leave empty to skip the mail section.",
-          "brief_home": "Show lights, open doors and windows, and active climate."
+          "brief_home": "Show lights, open doors and windows, and active climate.",
+          "admins": "Telegram user IDs that may change the shared weather, calendars, mailboxes and shopping list from the Mini App. Leave empty to change them here only.",
+          "connection_repositories": "GitHub repositories with a connection.json at the root, as owner/repo or owner/repo@branch. Admins can also add them in the Mini App.",
+          "brief_chats": "Telegram IDs that get the household morning briefing from these options. It goes only to people who have not set up their own briefings in the Mini App. Leave empty to send it to every private chat. The briefing service without a chat ID also sends here.",
+          "allow_cloud_for_mail": "Allow Hearthkeeper to send the senders and subjects of recent messages to your preferred AI Task for a 3–5 line summary. Off by default: mail never leaves the house.",
+          "keep_audio": "Keep the original audio sent by the user after processing. Off by default: messages are deleted after transcription.",
+          "quiet_end": "End of quiet hours (e.g. 07:00).",
+          "quiet_start": "Start of quiet hours (e.g. 23:00). During quiet hours the scheduled briefing and reminders are suppressed.",
+          "users": "Telegram IDs of the people who may use the bot and the Mini App. Leave empty to allow everyone the Telegram integration lets through; a person must be allowed there too."
         }
       }
     },
     "error": {
-      "invalid_webapp_url": "Use an HTTPS address without a query or fragment."
+      "invalid_webapp_url": "Use an HTTPS address without a query or fragment.",
+      "invalid_connection_repo": "Use owner/repo or owner/repo@branch for connection plugins."
     }
   },
   "selector": {

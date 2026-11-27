@@ -22,6 +22,7 @@ from homeassistant.util import dt as dt_util
 
 if TYPE_CHECKING:
     from .brief import BriefingSources
+    from .personal_mail import PersonalMail, PersonalMailbox
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -229,6 +230,47 @@ async def async_mail_digest(
         f"• {_sender(message, texts)} — {_subject(message, texts)}"
         for message in messages
     )
+    return "\n".join(lines)
+
+
+async def async_personal_mail_digest(
+    personal: PersonalMail,
+    box: PersonalMailbox,
+    language: str,
+    *,
+    allow_cloud: bool = False,
+) -> str:
+    """Build the mail section from a user's own mailbox."""
+    from .personal_mail import MailboxError
+
+    texts = _TEXTS.get(language, _TEXTS["en"])
+    try:
+        unread = await personal.async_unread(box)
+    except MailboxError as err:
+        _LOGGER.debug("Personal mailbox is unavailable (%s)", err.code)
+        return f"{texts['header']}: {texts['unavailable']}"
+    if unread.count == 0:
+        return f"{texts['header']}: {texts['no_mail']}"
+    messages = tuple(
+        MailMessage(
+            sender=sender, subject=subject, received=received, entry_id="", uid=""
+        )
+        for sender, subject, received in unread.headers
+    )
+    if allow_cloud and messages:
+        summary = await _async_ai_summary(personal.hass, messages, texts)
+        if summary:
+            return f"{texts['ai_header']}\n{summary}"
+        header = texts["ai_failed"]
+    else:
+        header = texts["header"]
+    lines = [f"{header}: {unread.count}"]
+    lines.extend(
+        f"• {_sender(message, texts)} — {_subject(message, texts)}"
+        for message in messages
+    )
+    if unread.count > len(messages):
+        lines.append(texts["more"].format(count=unread.count - len(messages)))
     return "\n".join(lines)
 
 

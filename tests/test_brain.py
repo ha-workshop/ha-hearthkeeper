@@ -9,11 +9,13 @@ from typing import Any
 import pytest
 from homeassistant.core import HomeAssistant, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.util import dt as dt_util
 
 from custom_components.hearthkeeper import brain as brain_module
 from custom_components.hearthkeeper.assist import PipelineSettings
 from custom_components.hearthkeeper.brain import Brain, extract_speech
 from custom_components.hearthkeeper.brief import BriefingSources
+from custom_components.hearthkeeper.settings import InvalidPreference
 from custom_components.hearthkeeper.store import ChatStore
 from custom_components.hearthkeeper.transport import (
     Attachment,
@@ -985,7 +987,7 @@ async def test_scheduled_tick_uses_each_users_time(
         quiet_start="",
         quiet_end="",
     )
-    brain._chats.get(1)  # household default: 08:00
+    brain._chats.get(1).briefings = None  # an older user: household default 08:00
     await brain.async_update_preferences(
         2, {"briefings": [{"kind": "morning", "time": "07:15", "enabled": True}]}
     )
@@ -1030,3 +1032,256 @@ async def test_quiet_hours_are_personal(
 
     assert seen == [("23:00", "07:00"), ("", "")]
     assert transport.silent == [True, False]
+
+
+async def test_custom_skill_runs_on_schedule(hass: HomeAssistant) -> None:
+    """A custom skill asks the agent in its own conversation at its time."""
+    calls: list[dict[str, Any]] = []
+
+    async def _process(call: Any) -> dict[str, Any]:
+        calls.append(dict(call.data))
+        return {"response": {"speech": {"plain": {"speech": "Колобок…"}}}}
+
+    hass.services.async_register(
+        "conversation", "process", _process, supports_response=SupportsResponse.ONLY
+    )
+    transport = FakeTransport()
+    brain = _brain(hass, transport, quiet_start="", quiet_end="")
+    await brain.async_update_preferences(
+        42,
+        {
+            "skills": [
+                {
+                    "id": "s1",
+                    "name": "Сказка",
+                    "prompt": "Расскажи сказку",
+                    "time": "20:00",
+                },
+                {
+                    "id": "s2",
+                    "name": "Выкл",
+                    "prompt": "x",
+                    "time": "20:00",
+                    "enabled": False,
+                },
+                {"id": "s3", "name": "Кнопка", "prompt": "y", "time": ""},
+            ]
+        },
+    )
+
+    await brain.async_scheduled_tick(datetime(2026, 11, 20, 19, 59))
+    assert calls == []
+
+    await brain.async_scheduled_tick(datetime(2026, 11, 20, 20, 0))
+    assert [call["text"] for call in calls] == ["Расскажи сказку"]
+    assert calls[0]["conversation_id"] == "tg:42:skill:s1"
+    assert transport.sent == [(42, "✨ Сказка\n\nКолобок…")]
+    assert brain.webapp_state(42)["custom_skills"][0]["last_run"]
+    # The chat's own conversation is untouched.
+    assert brain._chats.get(42).conversation_id == "tg:42"
+
+    assert await brain.async_run_custom_skill(42, "s3")
+    assert not await brain.async_run_custom_skill(42, "missing")
+    assert brain.has_custom_skill(42, "s3") and not brain.has_custom_skill(42, "x")
+
+
+async def test_custom_skill_without_agent_explains(hass: HomeAssistant) -> None:
+    """Without a conversation agent the user learns why nothing happened."""
+    transport = FakeTransport()
+    brain = _brain(hass, transport, pipeline=None)
+    await brain.async_update_preferences(
+        42, {"skills": [{"id": "s1", "name": "Шутка", "prompt": "x"}]}
+    )
+
+    assert not await brain.async_run_custom_skill(42, "s1")
+    assert "Шутка" in transport.sent[0][1]
+
+
+async def test_custom_skill_follows_weekdays(hass: HomeAssistant) -> None:
+    """A skill limited to weekdays stays quiet on Saturday."""
+    asked: list[str] = []
+
+    async def _process(call: Any) -> dict[str, Any]:
+        asked.append(call.data["text"])
+        return {"response": {"speech": {"plain": {"speech": "ok"}}}}
+
+    hass.services.async_register(
+        "conversation", "process", _process, supports_response=SupportsResponse.ONLY
+    )
+    brain = _brain(hass, FakeTransport(), quiet_start="", quiet_end="")
+    await brain.async_update_preferences(
+        42,
+        {
+            "skills": [
+                {
+                    "name": "Будни",
+                    "prompt": "work",
+                    "time": "08:00",
+                    "days": [0, 1, 2, 3, 4],
+                }
+            ]
+        },
+    )
+
+    await brain.async_scheduled_tick(datetime(2026, 11, 28, 8, 0))  # Saturday
+    assert asked == []
+    await brain.async_scheduled_tick(datetime(2026, 11, 30, 8, 0))  # Monday
+    assert asked == ["work"]
+
+
+def _calendar_service(hass: HomeAssistant, events: list[dict[str, Any]]) -> list[Any]:
+    """Register ``calendar.get_events`` answering from ``events``."""
+    asked: list[Any] = []
+
+    async def _get_events(call: Any) -> dict[str, Any]:
+        asked.append(dict(call.data))
+        start = datetime.fromisoformat(call.data["start_date_time"])
+        end = datetime.fromisoformat(call.data["end_date_time"])
+        found = [
+            event
+            for event in events
+            if len(event["start"]) == 10
+            or start <= datetime.fromisoformat(event["start"]) < end
+        ]
+        return {"calendar.family": {"events": found}}
+
+    hass.services.async_register(
+        "calendar", "get_events", _get_events, supports_response=SupportsResponse.ONLY
+    )
+    return asked
+
+
+async def test_event_reminder_before_a_meeting(hass: HomeAssistant) -> None:
+    """A timed event is announced once, N minutes before it starts."""
+    tz = dt_util.get_default_time_zone()
+    _calendar_service(
+        hass,
+        [
+            {
+                "start": datetime(2026, 11, 20, 10, 30, tzinfo=tz).isoformat(),
+                "summary": "Стоматолог",
+            },
+            {"start": "2026-11-20", "summary": "Весь день"},
+        ],
+    )
+    transport = FakeTransport()
+    brain = _brain(
+        hass,
+        transport,
+        pipeline=None,
+        briefing=BriefingSources(calendars=("calendar.family",)),
+        quiet_start="",
+        quiet_end="",
+    )
+    await brain.async_update_preferences(
+        42, {"calendars": ["calendar.family"], "event_reminder": 15}
+    )
+
+    await brain.async_scheduled_tick(datetime(2026, 11, 20, 10, 14, tzinfo=tz))
+    assert transport.sent == []
+    await brain.async_scheduled_tick(datetime(2026, 11, 20, 10, 15, tzinfo=tz))
+    await brain.async_scheduled_tick(datetime(2026, 11, 20, 10, 15, 30, tzinfo=tz))
+    assert transport.sent == [(42, "⏰ In 15 min, at 10:30: Стоматолог")]
+
+
+async def test_birthdays_with_a_greeting(hass: HomeAssistant) -> None:
+    """Birthdays from the calendar come at the user's time with a greeting."""
+    tz = dt_util.get_default_time_zone()
+    _calendar_service(
+        hass,
+        [
+            {"start": "2026-11-20", "summary": "День рождения Маши"},
+            {"start": "2026-11-20", "summary": "Вынести мусор"},
+        ],
+    )
+
+    async def _process(call: Any) -> dict[str, Any]:
+        assert "День рождения Маши" in call.data["text"]
+        return {"response": {"speech": {"plain": {"speech": "С днём рождения!"}}}}
+
+    hass.services.async_register(
+        "conversation", "process", _process, supports_response=SupportsResponse.ONLY
+    )
+    transport = FakeTransport()
+    brain = _brain(
+        hass,
+        transport,
+        briefing=BriefingSources(calendars=("calendar.family",)),
+        quiet_start="",
+        quiet_end="",
+    )
+    await brain.async_update_preferences(
+        42,
+        {"calendars": ["calendar.family"], "birthdays": "09:00", "briefings": []},
+    )
+
+    await brain.async_scheduled_tick(datetime(2026, 11, 20, 9, 0, tzinfo=tz))
+
+    assert transport.sent == [
+        (42, "🎂 Сегодня день рождения:\n• День рождения Маши\n\nС днём рождения!")
+    ]
+
+
+async def test_mail_briefing_plan(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A mail plan sends the digest; without a mailbox it stays quiet."""
+    digest: list[str | None] = ["📬 2 письма"]
+
+    async def _mail(*args: Any, **kwargs: Any) -> str | None:
+        return digest[0]
+
+    monkeypatch.setattr(brain_module, "async_mail_digest", _mail)
+    transport = FakeTransport()
+    brain = _brain(hass, transport, pipeline=None, quiet_start="", quiet_end="")
+    await brain.async_update_preferences(
+        42, {"briefings": [{"kind": "mail", "time": "09:00", "enabled": True}]}
+    )
+
+    await brain.async_scheduled_tick(datetime(2026, 11, 20, 9, 0))
+    digest[0] = None
+    await brain.async_scheduled_tick(datetime(2026, 11, 21, 9, 0))
+
+    assert transport.sent == [(42, "📬 2 письма")]
+
+
+async def test_personal_calendars_come_from_the_options(hass: HomeAssistant) -> None:
+    """Users pick HA calendars only from the ones the integration shares."""
+    hass.states.async_set("calendar.family", "off")
+    hass.states.async_set("calendar.private", "off")
+    brain = _brain(
+        hass, FakeTransport(), briefing=BriefingSources(calendars=("calendar.family",))
+    )
+
+    choices = [c["id"] for c in brain.webapp_state(42)["choices"]["calendars"]]
+    assert choices == ["calendar.family"]
+
+    with pytest.raises(InvalidPreference):
+        await brain.async_update_preferences(42, {"calendars": ["calendar.private"]})
+
+
+
+async def test_new_user_gets_a_nine_oclock_briefing(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A new private chat starts with its own 09:00 morning briefing."""
+
+    async def _brief(*args: Any, **kwargs: Any) -> str:
+        return "Сводка дня"
+
+    monkeypatch.setattr(brain_module, "async_build_briefing", _brief)
+    transport = FakeTransport()
+    brain = _brain(hass, transport, pipeline=None, quiet_start="", quiet_end="")
+
+    await brain.async_handle(
+        _message("/start", kind=MessageKind.COMMAND, command="/start")
+    )
+    plans = brain.webapp_state(42)["briefings"]
+    assert [(p["kind"], p["time"], p["enabled"]) for p in plans] == [
+        ("morning", "09:00", True)
+    ]
+    assert brain._chats.get(-100).briefings is None  # groups get none
+
+    transport.sent.clear()
+    await brain.async_scheduled_tick(datetime(2026, 11, 20, 9, 0))
+    assert transport.sent == [(42, "Сводка дня")]

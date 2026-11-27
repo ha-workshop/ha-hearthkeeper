@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -20,13 +21,14 @@ from homeassistant.helpers.event import async_track_time_change
 from .assist import PipelineSettings, async_get_pipeline_settings
 from .brain import Brain
 from .brief import BriefingSources
+from .connections import ConnectionPlugins
 from .const import (
     ATTR_CHAT_ID,
     ATTR_KIND,
     ATTR_MODE,
     ATTR_TEXT,
-    BRIEFING_EVENING,
-    BRIEFING_MORNING,
+    BRIEFING_KINDS,
+    CONF_ADMINS,
     CONF_ALLOW_CLOUD_FOR_MAIL,
     CONF_ALLOW_GROUPS,
     CONF_BRIEF_CALENDARS,
@@ -36,6 +38,7 @@ from .const import (
     CONF_BRIEF_MAIL,
     CONF_BRIEF_TIME,
     CONF_BRIEF_WEATHER,
+    CONF_CONNECTION_REPOS,
     CONF_KEEP_AUDIO,
     CONF_MAX_VOICE_SECONDS,
     CONF_PIPELINE_ID,
@@ -44,6 +47,7 @@ from .const import (
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
     CONF_TODO_ENTITY,
+    CONF_USERS,
     CONF_WEBAPP_URL,
     DEFAULT_ALLOW_CLOUD_FOR_MAIL,
     DEFAULT_ALLOW_GROUPS,
@@ -67,6 +71,8 @@ from .const import (
     TELEGRAM_SUBENTRY_ALLOWED_CHATS,
 )
 from .mail import Mailbox
+from .personal_calendar import PersonalCalendars
+from .personal_mail import PersonalMail
 from .skills import (
     SkillRouter,
     async_install_sentences,
@@ -100,7 +106,11 @@ class HearthkeeperRuntime:
     quiet_start: str
     quiet_end: str
     stats: RuntimeStats
+    connections: ConnectionPlugins
     bot_token: str | None = None
+    entry_id: str = ""
+    admins: frozenset[int] = frozenset()
+    users: frozenset[int] = frozenset()
 
     def handles_chat(self, chat_id: int) -> bool:
         """Return True when the chat belongs to this entry."""
@@ -138,6 +148,7 @@ async def async_setup_entry(
         )
 
     options = dict(DEFAULT_OPTIONS) | dict(entry.options)
+    users = frozenset(_chat_ids(options.get(CONF_USERS)))
     pipeline = _resolve_pipeline(hass, options.get(CONF_PIPELINE_ID))
     if pipeline is None:
         _LOGGER.info(
@@ -164,6 +175,7 @@ async def async_setup_entry(
         hass,
         telegram_entry_id=telegram_entry.entry_id,
         allowed_chats=allowed_chats,
+        users=users,
         allow_groups=bool(options.get(CONF_ALLOW_GROUPS, DEFAULT_ALLOW_GROUPS)),
         bot_token=bot_token,
     )
@@ -184,6 +196,13 @@ async def async_setup_entry(
     skill_router = SkillRouter(
         hass, briefing, mailbox, allow_cloud_for_mail=allow_cloud_for_mail
     )
+    connections = ConnectionPlugins(
+        hass, _str_list(options.get(CONF_CONNECTION_REPOS))
+    )
+    personal_mail = PersonalMail(hass)
+    await personal_mail.async_load()
+    personal_calendars = PersonalCalendars(hass)
+    await personal_calendars.async_load()
     brain = Brain(
         hass,
         transport,
@@ -206,6 +225,9 @@ async def async_setup_entry(
         brief_time=brief_time,
         brief_chats=brief_chats,
         webapp_url=_str_or_none(options.get(CONF_WEBAPP_URL)),
+        connections=connections,
+        personal_mail=personal_mail,
+        personal_calendars=personal_calendars,
     )
     transport.set_handler(brain.async_handle)
     entry.async_on_unload(brain.async_stop)
@@ -224,9 +246,18 @@ async def async_setup_entry(
         quiet_start=quiet_start,
         quiet_end=quiet_end,
         stats=stats,
+        connections=connections,
         bot_token=bot_token,
+        entry_id=entry.entry_id,
+        admins=frozenset(_chat_ids(options.get(CONF_ADMINS))),
+        users=users,
     )
     entry.runtime_data = runtime
+    if connections.repositories:
+        # Read the plugins once so the first briefing already has their lines.
+        entry.async_create_background_task(
+            hass, connections.async_plugins(), f"{DOMAIN} connection plugins"
+        )
 
     async_register_intents(hass, skill_router)
     entry.async_on_unload(lambda: async_remove_intents(hass))
@@ -294,6 +325,15 @@ def _allowed_chats(telegram_entry: ConfigEntry) -> set[int]:
 def _str_or_none(value: object) -> str | None:
     """Return the value when it is a non-empty string."""
     return value if isinstance(value, str) and value else None
+
+
+def _chat_ids(value: object) -> tuple[int, ...]:
+    """Return the chat ids of a multi-select option of numbers as strings."""
+    ids = []
+    for item in _str_list(value):
+        with contextlib.suppress(ValueError):
+            ids.append(int(item))
+    return tuple(ids)
 
 
 def _str_list(value: object) -> tuple[str, ...]:
@@ -416,7 +456,7 @@ async def _async_handle_brief(call: ServiceCall) -> None:
             translation_domain=DOMAIN, translation_key="invalid_service_data"
         )
     raw_kind = call.data.get(ATTR_KIND)
-    kind = raw_kind if isinstance(raw_kind, str) and raw_kind in (BRIEFING_MORNING, BRIEFING_EVENING) else ""
+    kind = raw_kind if isinstance(raw_kind, str) and raw_kind in BRIEFING_KINDS else ""
 
     runtimes = _loaded_runtimes(call.hass)
     if not runtimes:

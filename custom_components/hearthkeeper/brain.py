@@ -4,18 +4,27 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import uuid
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 
 from .assist import PipelineSettings, extract_speech
-from .brief import BriefingSources, async_build_briefing, is_quiet_hours
+from .brief import (
+    BriefingSources,
+    async_build_briefing,
+    async_events_between,
+    is_quiet_hours,
+)
+from .connections import ConnectionPlugins
 from .const import (
+    BRIEFING_MAIL,
     CONVERSATION_TIMEOUT,
     DEFAULT_LANGUAGE,
     DEFAULT_MAX_VOICE_SECONDS,
@@ -25,7 +34,9 @@ from .const import (
     REPLY_MODES,
     VOICE_DOWNLOAD_LIMIT,
 )
-from .mail import Mailbox, async_mail_digest
+from .mail import Mailbox, async_mail_digest, async_personal_mail_digest
+from .personal_calendar import CalendarError, PersonalCalendars
+from .personal_mail import MailboxError, PersonalMail, validate
 from .reminders import (
     ReminderManager,
     ReminderRequest,
@@ -34,11 +45,10 @@ from .reminders import (
     parse_reminder_command,
 )
 from .settings import apply_preferences
-from .store import normalise_time
 from .shop import ShopSkill
-from .skills import SkillRouter
+from .skills import INTENT_BRIEF, INTENT_MAIL, SkillRouter
 from .stats import RuntimeStats
-from .store import ChatContext, ChatStore
+from .store import ChatContext, ChatStore, normalise_time
 from .transport import IncomingMessage, MessageKind, Transport, strip_bot_mention
 from .voice import (
     VoiceTooLongError,
@@ -127,6 +137,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "timeout": "Ассистент не ответил за минуту. Попробуйте ещё раз.",
         "failed": "Не получилось получить ответ. Попробуйте ещё раз.",
         "empty": "Ассистент вернул пустой ответ.",
+        "skill_no_agent": (
+            "Для навыка «{name}» нужен агент conversation. Выберите его в /model."
+        ),
+        "event_soon": "⏰ Через {minutes} мин, в {time}: {summary}",
+        "birthdays": "🎂 Сегодня день рождения:",
+        "birthday_prompt": (
+            "Напиши одно короткое тёплое поздравление с днём рождения "
+            "(2–3 предложения), которое можно отправить. Повод: {who}. "
+            "Без вступления и вариантов."
+        ),
     },
     "en": {
         "help": (
@@ -196,6 +216,15 @@ TEXTS: dict[str, dict[str, str]] = {
         "timeout": "The assistant did not answer within a minute. Please try again.",
         "failed": "Could not get an answer. Please try again.",
         "empty": "The assistant returned an empty answer.",
+        "skill_no_agent": (
+            "The «{name}» skill needs a conversation agent. Pick one with /model."
+        ),
+        "event_soon": "⏰ In {minutes} min, at {time}: {summary}",
+        "birthdays": "🎂 Birthdays today:",
+        "birthday_prompt": (
+            "Write one short, warm birthday greeting (2–3 sentences) ready to "
+            "send. Occasion: {who}. No introduction and no options."
+        ),
     },
 }
 
@@ -237,6 +266,9 @@ class Brain:
         brief_time: str = "",
         brief_chats: tuple[int, ...] = (),
         webapp_url: str | None = None,
+        connections: ConnectionPlugins | None = None,
+        personal_mail: PersonalMail | None = None,
+        personal_calendars: PersonalCalendars | None = None,
     ) -> None:
         """Initialise the brain with entry-level defaults."""
         self.hass = hass
@@ -257,6 +289,9 @@ class Brain:
         self._brief_time = brief_time
         self._brief_chats = brief_chats
         self._webapp_url = webapp_url
+        self._connections = connections
+        self._personal_mail = personal_mail
+        self._personal_calendars = personal_calendars
         self._shop = ShopSkill(hass, transport, todo_entity)
         self._skills = skills or SkillRouter(
             hass, self._briefing, mailbox, allow_cloud_for_mail
@@ -265,6 +300,8 @@ class Brain:
         # The callback data of an agent button is only an index; the list it
         # points at lives here so long entity ids never hit Telegram's limit.
         self._agent_choices: dict[int, tuple[str, ...]] = {}
+        # Event reminders already sent: ``(chat_id, start, summary)``.
+        self._events_sent: set[tuple[int, datetime, str]] = set()
 
     async def async_handle(self, message: IncomingMessage) -> None:
         """Process one accepted message."""
@@ -337,7 +374,16 @@ class Brain:
         if skill is not None:
             self._stats.skills += 1
             try:
-                answer = await self._skills.async_run(skill, language)
+                answer = await self._skills.async_run(
+                    skill,
+                    language,
+                    sources=self._sources(chat),
+                    mail_text=(
+                        await self._async_personal_mail_text(chat)
+                        if skill.intent in (INTENT_MAIL, INTENT_BRIEF)
+                        else None
+                    ),
+                )
             except HomeAssistantError as err:
                 self._stats.record_error(type(err).__name__)
                 _LOGGER.error(
@@ -635,14 +681,22 @@ class Brain:
             if scheduled and self._is_quiet(chat):
                 _LOGGER.debug("Quiet hours: skipping a scheduled briefing")
                 continue
-            text = await async_build_briefing(
-                self.hass,
-                self._sources(chat),
-                self._language(chat),
-                mailbox=self._mailbox,
-                allow_cloud_for_mail=self._allow_cloud_for_mail,
-                kind=kind or None,
-            )
+            if kind == BRIEFING_MAIL:
+                text = await self._async_mail_text(chat)
+                if not text:
+                    _LOGGER.debug("No mailbox for chat %s, skipping the digest", target)
+                    continue
+            else:
+                text = await async_build_briefing(
+                    self.hass,
+                    self._sources(chat),
+                    self._language(chat),
+                    mailbox=self._mailbox,
+                    allow_cloud_for_mail=self._allow_cloud_for_mail,
+                    kind=kind or None,
+                    extra_lines=self._plugin_lines(chat),
+                    personal_mail=await self._async_personal_mail_text(chat),
+                )
             await self._async_deliver(chat, text, chat_id=target)
 
     async def _async_handle_command(
@@ -842,6 +896,8 @@ class Brain:
             self._language(chat),
             mailbox=self._mailbox,
             allow_cloud_for_mail=self._allow_cloud_for_mail,
+            extra_lines=self._plugin_lines(chat),
+            personal_mail=await self._async_personal_mail_text(chat),
         )
         await self._reply(message, text)
 
@@ -852,13 +908,7 @@ class Brain:
         await self._transport.async_send_chat_action(
             message.chat_id, "typing", thread_id=message.thread_id
         )
-        text = await async_mail_digest(
-            self.hass,
-            self._sources(chat),
-            self._language(chat),
-            mailbox=self._mailbox,
-            allow_cloud=self._allow_cloud_for_mail,
-        )
+        text = await self._async_mail_text(chat)
         await self._reply(message, text or self._text(chat, "mail_not_configured"))
 
     async def _async_reminder_command(
@@ -938,8 +988,9 @@ class Brain:
     def _sources(self, chat: ChatContext) -> BriefingSources:
         """Return the briefing sources of a chat.
 
-        Personal calendars and mailboxes are limited to the ones the
-        integration options share, even if the options changed since.
+        Home Assistant calendars and mailboxes are limited to the ones the
+        integration options share, even if the options changed since. A
+        user's own calendars come from their iCal links.
         """
         override = chat.sources or {}
         shared = self._briefing
@@ -957,6 +1008,11 @@ class Brain:
                 if item in shared.mail
             ),
             home=override.get("home", shared.home),
+            ics=(
+                self._personal_calendars.urls(chat.chat_id)
+                if self._personal_calendars
+                else ()
+            ),
         )
 
     def _quiet_hours(self, chat: ChatContext) -> tuple[str, str]:
@@ -988,17 +1044,248 @@ class Brain:
         return []
 
     async def async_scheduled_tick(self, now: datetime) -> None:
-        """Send the daily briefing to every private chat whose time is now."""
+        """Send briefings and custom skills whose time is now."""
         current = f"{now.hour:02d}:{now.minute:02d}"
         due: list[tuple[int, str]] = []
+        due_skills: list[tuple[int, str]] = []
         for chat in list(self._chats.chats.values()):
             if chat.chat_id <= 0:
                 continue
             for kind, at in self._brief_schedule(chat):
                 if at == current:
                     due.append((chat.chat_id, kind))
+            for skill in chat.custom_skills:
+                if (
+                    skill.enabled
+                    and skill.time == current
+                    and skill.runs_on(now.weekday())
+                ):
+                    due_skills.append((chat.chat_id, skill.id))
         for chat_id, kind in due:
             await self.async_send_briefing(chat_id, scheduled=True, kind=kind)
+        for chat_id, skill_id in due_skills:
+            await self.async_run_custom_skill(chat_id, skill_id, scheduled=True)
+        await self._async_calendar_tick(now, current)
+
+    async def _async_calendar_tick(self, now: datetime, current: str) -> None:
+        """Remind about events starting soon and announce today's birthdays."""
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=dt_util.get_default_time_zone())
+        minute = now.replace(second=0, microsecond=0)
+        self._events_sent = {key for key in self._events_sent if key[1] >= minute}
+        for chat in list(self._chats.chats.values()):
+            if chat.chat_id <= 0:
+                continue
+            sources = self._sources(chat)
+            if not sources.has_calendars:
+                continue
+            if chat.event_reminder:
+                await self._async_event_reminders(chat, sources, minute)
+            if chat.birthdays and chat.birthdays == current:
+                await self._async_birthdays(chat, sources, minute)
+
+    async def _async_event_reminders(
+        self, chat: ChatContext, sources: BriefingSources, minute: datetime
+    ) -> None:
+        start = minute + timedelta(minutes=chat.event_reminder)
+        events = await async_events_between(
+            self.hass, sources, start, start + timedelta(minutes=1)
+        )
+        for begins, summary, all_day in events:
+            key = (chat.chat_id, begins, summary)
+            if all_day or key in self._events_sent:
+                continue
+            self._events_sent.add(key)
+            text = self._text(chat, "event_soon").format(
+                minutes=chat.event_reminder,
+                time=dt_util.as_local(begins).strftime("%H:%M"),
+                summary=summary,
+            )
+            await self._transport.async_send_text(
+                chat.chat_id, text, silent=self._is_quiet(chat)
+            )
+
+    async def _async_birthdays(
+        self, chat: ChatContext, sources: BriefingSources, minute: datetime
+    ) -> None:
+        day = dt_util.start_of_local_day(minute)
+        events = await async_events_between(
+            self.hass, sources, day, day + timedelta(days=1)
+        )
+        people = list(
+            dict.fromkeys(
+                summary for _, summary, _ in events if _BIRTHDAY.search(summary)
+            )
+        )
+        if not people:
+            return
+        lines = [self._text(chat, "birthdays"), *(f"• {who}" for who in people)]
+        greeting = await self._async_ask_agent(
+            chat,
+            self._text(chat, "birthday_prompt").format(who="; ".join(people)),
+            f"tg:{chat.chat_id}:birthdays",
+            report=False,
+        )
+        if greeting:
+            lines += ["", greeting]
+        await self._async_deliver(chat, "\n".join(lines), chat_id=chat.chat_id)
+
+    async def _async_ask_agent(
+        self,
+        chat: ChatContext,
+        text: str,
+        conversation_id: str,
+        *,
+        report: bool = True,
+    ) -> str | None:
+        """Ask the chat's agent once; with ``report`` tell the chat what failed."""
+        agent_id = chat.agent_id or self._agent_id()
+        if not agent_id:
+            return None
+        chat_id = chat.chat_id
+        try:
+            async with asyncio.timeout(CONVERSATION_TIMEOUT):
+                result = await self.hass.services.async_call(
+                    "conversation",
+                    "process",
+                    {
+                        "text": text,
+                        "agent_id": agent_id,
+                        "conversation_id": conversation_id,
+                        "language": self._conversation_language(chat),
+                    },
+                    blocking=True,
+                    return_response=True,
+                )
+        except TimeoutError:
+            self._stats.record_error("TimeoutError")
+            if report:
+                await self._transport.async_send_text(
+                    chat_id, self._text(chat, "timeout")
+                )
+            return None
+        except HomeAssistantError as err:
+            self._stats.record_error(type(err).__name__)
+            _LOGGER.error(
+                "Agent request failed in chat %s (%s)", chat_id, type(err).__name__
+            )
+            if report:
+                await self._transport.async_send_text(
+                    chat_id, self._text(chat, "failed")
+                )
+            return None
+        reply = extract_speech(result)
+        if not reply and report:
+            await self._transport.async_send_text(chat_id, self._text(chat, "empty"))
+        return reply or None
+
+    async def _async_personal_mail_text(self, chat: ChatContext) -> str | None:
+        """Return the digest of the chat's own mailbox, or None without one."""
+        box = self._personal_mail.get(chat.chat_id) if self._personal_mail else None
+        if box is None or self._personal_mail is None:
+            return None
+        return await async_personal_mail_digest(
+            self._personal_mail,
+            box,
+            self._language(chat),
+            allow_cloud=self._allow_cloud_for_mail,
+        )
+
+    async def _async_mail_text(self, chat: ChatContext) -> str | None:
+        """Return the chat's mail digest: its own mailbox first, else shared."""
+        personal = await self._async_personal_mail_text(chat)
+        if personal is not None:
+            return personal
+        return await async_mail_digest(
+            self.hass,
+            self._sources(chat),
+            self._language(chat),
+            mailbox=self._mailbox,
+            allow_cloud=self._allow_cloud_for_mail,
+        )
+
+    async def async_set_personal_mail(
+        self, chat_id: int, raw: object
+    ) -> dict[str, Any]:
+        """Check and save a user's mailbox; raise ``MailboxError`` if it fails."""
+        if self._personal_mail is None:
+            raise MailboxError("unavailable")
+        box = validate(raw, self._personal_mail.get(chat_id))
+        unread = await self._personal_mail.async_set(chat_id, box)
+        _LOGGER.info("Chat %s connected a personal mailbox", chat_id)
+        return {**box.public(), "unread": unread.count}
+
+    async def async_add_personal_calendar(
+        self, chat_id: int, name: object, url: object
+    ) -> dict[str, Any]:
+        """Check and save a calendar link; raise ``CalendarError`` if it fails."""
+        if self._personal_calendars is None:
+            raise CalendarError("unavailable")
+        item, today = await self._personal_calendars.async_add(chat_id, name, url)
+        _LOGGER.info("Chat %s added a personal calendar", chat_id)
+        return {**item.public(), "today": today}
+
+    async def async_remove_personal_calendar(
+        self, chat_id: int, calendar_id: object
+    ) -> None:
+        """Forget one calendar link."""
+        if self._personal_calendars is not None:
+            await self._personal_calendars.async_remove(chat_id, calendar_id)
+
+    async def async_remove_personal_mail(self, chat_id: int) -> None:
+        """Forget a user's mailbox and its password."""
+        if self._personal_mail is not None:
+            await self._personal_mail.async_remove(chat_id)
+
+    def _plugin_lines(self, chat: ChatContext) -> list[str]:
+        """Return the briefing lines connection plugins add."""
+        if self._connections is None:
+            return []
+        return self._connections.briefing_lines(self._language(chat))
+
+    def chat_language(self, chat_id: int) -> str:
+        """Return the two-letter language the bot uses in a chat."""
+        return self._language(self._chats.get(chat_id))
+
+    def has_custom_skill(self, chat_id: int, skill_id: str) -> bool:
+        """Return True when the chat has a custom skill with this id."""
+        return any(
+            skill.id == skill_id for skill in self._chats.get(chat_id).custom_skills
+        )
+
+    async def async_run_custom_skill(
+        self, chat_id: int, skill_id: str, *, scheduled: bool = False
+    ) -> bool:
+        """Ask the agent a custom skill's request and send the answer.
+
+        Each skill talks to the agent in its own conversation, so a daily
+        request neither mixes with the chat nor sees what was said there.
+        """
+        chat = self._chats.get(chat_id)
+        skill = next((s for s in chat.custom_skills if s.id == skill_id), None)
+        if skill is None:
+            return False
+        if scheduled and self._is_quiet(chat):
+            _LOGGER.debug("Quiet hours: skipping a scheduled custom skill")
+            return False
+        agent_id = chat.agent_id or self._agent_id()
+        if not agent_id:
+            await self._transport.async_send_text(
+                chat_id, self._text(chat, "skill_no_agent").format(name=skill.name)
+            )
+            return False
+
+        self._stats.skills += 1
+        await self._transport.async_send_chat_action(chat_id, "typing")
+        reply = await self._async_ask_agent(
+            chat, skill.prompt, f"tg:{chat_id}:skill:{skill.id}"
+        )
+        if not reply:
+            return False
+        skill.last_run = dt_util.utcnow().isoformat(timespec="seconds")
+        await self._chats.async_save()
+        await self._async_deliver(chat, f"✨ {skill.name}\n\n{reply}", chat_id=chat_id)
+        return True
 
     def async_stop(self) -> None:
         """Cancel pending reminders when the config entry unloads."""
@@ -1091,6 +1378,27 @@ class Brain:
                 "max_voice_seconds": self._max_voice_seconds,
                 "keep_audio": self._keep_audio,
                 "allow_cloud_for_mail": self._allow_cloud_for_mail,
+            },
+            "custom_skills": [skill.as_dict() for skill in chat.custom_skills],
+            "mascot": {"color": chat.mascot_color, "name": chat.mascot_name},
+            "time_zone": self.hass.config.time_zone,
+            "personal_calendars": [
+                item.public()
+                for item in (
+                    self._personal_calendars.get(chat_id)
+                    if self._personal_calendars
+                    else ()
+                )
+            ],
+            "personal_mail": (
+                box.public()
+                if self._personal_mail
+                and (box := self._personal_mail.get(chat_id)) is not None
+                else None
+            ),
+            "calendar_alerts": {
+                "event_reminder": chat.event_reminder,
+                "birthdays": chat.birthdays,
             },
             "reminders": [
                 {"when": _format_due(item.due), "text": item.text}
@@ -1232,6 +1540,10 @@ class Brain:
 
 
 __all__ = ["MODEL_CALLBACK", "Brain", "extract_speech"]
+
+# Calendar entries that mean a birthday: "День рождения Маши", "ДР Пети",
+# "Anna's birthday", "🎂 Mom".
+_BIRTHDAY = re.compile(r"(день\s+рождени|\bдр\b|birthday|b-?day|🎂)", re.IGNORECASE)
 
 
 def _format_due(due: datetime) -> str:

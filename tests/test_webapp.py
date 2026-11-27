@@ -16,7 +16,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.hearthkeeper.connections import ConnectionPlugins
 from custom_components.hearthkeeper.const import DOMAIN
+from custom_components.hearthkeeper.personal_calendar import CalendarError
+from custom_components.hearthkeeper.personal_mail import MailboxError
 from custom_components.hearthkeeper.settings import InvalidPreference
 from custom_components.hearthkeeper.webapp import (
     WEBAPP_API_PATH,
@@ -132,8 +135,40 @@ def test_webapp_url_override(hass: HomeAssistant) -> None:
 class FakeBrain:
     """Record what the API asks the brain to do."""
 
-    def __init__(self) -> None:
+    def __init__(self, hass: HomeAssistant | None = None) -> None:
         self.calls: list[tuple[str, Any]] = []
+        self.hass = hass
+
+    def chat_language(self, chat_id: int) -> str:
+        return "ru"
+
+    async def async_set_personal_mail(
+        self, chat_id: int, raw: Any
+    ) -> dict[str, Any]:
+        if raw.get("password") != "app-pass":
+            raise MailboxError("auth")
+        self.calls.append(("mail", chat_id))
+        return {"host": raw["host"], "username": raw["username"], "unread": 2}
+
+    async def async_add_personal_calendar(
+        self, chat_id: int, name: Any, url: Any
+    ) -> dict[str, Any]:
+        if not str(url).startswith("https://"):
+            raise CalendarError("bad_url")
+        return {"id": "c1", "name": name, "host": "cal.example.com", "today": 1}
+
+    async def async_remove_personal_calendar(self, chat_id: int, cal_id: Any) -> None:
+        self.calls.append(("cal_off", cal_id))
+
+    async def async_remove_personal_mail(self, chat_id: int) -> None:
+        self.calls.append(("mail_off", chat_id))
+
+    def has_custom_skill(self, chat_id: int, skill_id: str) -> bool:
+        return skill_id == "s1"
+
+    async def async_run_custom_skill(self, chat_id: int, skill_id: str) -> bool:
+        self.calls.append(("run_skill", (chat_id, skill_id)))
+        return True
 
     def webapp_state(self, chat_id: int, first_name: str = "") -> dict[str, Any]:
         self.calls.append(("state", chat_id))
@@ -161,6 +196,16 @@ class FakeBrain:
         return sorted(patch)  # type: ignore[arg-type]
 
 
+class FakeConnections:
+    """No plugins."""
+
+    async def async_plugins(self) -> list[Any]:
+        return []
+
+    def integrations(self, kind: str) -> set[str]:
+        return set()
+
+
 class FakeTransport:
     """Record injected commands."""
 
@@ -182,8 +227,9 @@ async def api(hass: HomeAssistant, hass_client: Any) -> Any:
     runtime = SimpleNamespace(
         bot_token=TOKEN,
         allowed_chats={USER_ID},
-        brain=FakeBrain(),
+        brain=FakeBrain(hass),
         transport=FakeTransport(),
+        connections=FakeConnections(),
     )
     entry.runtime_data = runtime
     entry.mock_state(hass, ConfigEntryState.LOADED)
@@ -216,6 +262,7 @@ async def test_state_for_an_allowed_user(api: Any) -> None:
     assert body["state"] == {
         "chat_id": USER_ID,
         "first_name": "Олег",
+        "is_admin": False,
         "account": {"id": USER_ID, "name": "Олег", "username": "oleg"},
     }
 
@@ -336,3 +383,167 @@ async def test_bad_bodies(api: Any) -> None:
 
     status, _ = await api.call({"init_data": _init_data(), "action": "rm -rf"})
     assert status == 400
+
+
+async def test_connections_list_is_public(api: Any) -> None:
+    """Every allowed user can see the plugins; changing them needs an admin."""
+    init = _init_data()
+    status, body = await api.call({"init_data": init, "action": "connections"})
+    assert (status, body) == (200, {"ok": True, "connections": []})
+
+    for action in ("preview_connection", "add_connection", "remove_connection"):
+        status, body = await api.call(
+            {"init_data": init, "action": action, "repo": "owner/repo"}
+        )
+        assert (status, body["error"]) == (403, "forbidden")
+
+    status, body = await api.call({"init_data": init, "action": "shared"})
+    assert (status, body["error"]) == (403, "forbidden")
+
+
+async def test_run_skill_only_for_own_skills(hass: HomeAssistant, api: Any) -> None:
+    """A skill runs in the background; unknown ids are refused."""
+    init = _init_data()
+
+    status, body = await api.call(
+        {"init_data": init, "action": "run_skill", "id": "s1"}
+    )
+    await hass.async_block_till_done()
+    assert (status, body) == (200, {"ok": True})
+    assert ("run_skill", (USER_ID, "s1")) in api.runtime.brain.calls
+
+    for bad in ("other", None, 5):
+        status, body = await api.call(
+            {"init_data": init, "action": "run_skill", "id": bad}
+        )
+        assert (status, body["error"]) == (400, "bad_request")
+
+
+async def test_admin_changes_shared_sources_and_plugins(
+    hass: HomeAssistant,
+    api: Any,
+    aioclient_mock: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An admin can pick shared sources and add plugins; both reload the entry."""
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    api.runtime.admins = frozenset({USER_ID})
+    api.runtime.entry_id = entry.entry_id
+    reloads: list[str] = []
+    monkeypatch.setattr(
+        hass.config_entries, "async_schedule_reload", reloads.append
+    )
+    hass.states.async_set("weather.dacha", "sunny", {"friendly_name": "Дача"})
+    init = _init_data()
+
+    status, body = await api.call({"init_data": init, "action": "shared"})
+    assert status == 200
+    assert body["shared"]["weather"]["choices"] == [
+        {"id": "weather.dacha", "name": "Дача"}
+    ]
+
+    status, body = await api.call(
+        {
+            "init_data": init,
+            "action": "set_shared",
+            "key": "weather",
+            "value": "weather.nope",
+        }
+    )
+    assert (status, body["error"]) == (400, "bad_value")
+    status, _ = await api.call(
+        {
+            "init_data": init,
+            "action": "set_shared",
+            "key": "weather",
+            "value": "weather.dacha",
+        }
+    )
+    assert status == 200
+    assert entry.options["brief_weather"] == "weather.dacha"
+
+    aioclient_mock.get(
+        "https://raw.githubusercontent.com/owner/plug/HEAD/connection.json",
+        json={
+            "id": "plug",
+            "name": "Plug",
+            "integration": {"domain": "plug"},
+            "provides": {"kind": "briefing"},
+        },
+    )
+    api.runtime.connections = ConnectionPlugins(hass, [])
+    status, body = await api.call(
+        {"init_data": init, "action": "preview_connection", "repo": "owner/plug"}
+    )
+    plugin = body["plugin"]
+    assert (status, plugin["name"], plugin["ready"]) == (200, "Plug", False)
+    status, _ = await api.call(
+        {"init_data": init, "action": "add_connection", "repo": "owner/plug"}
+    )
+    assert status == 200
+    assert entry.options["connection_repositories"] == ["owner/plug"]
+    status, _ = await api.call(
+        {"init_data": init, "action": "remove_connection", "repo": "owner/plug"}
+    )
+    assert entry.options["connection_repositories"] == []
+    assert reloads == [entry.entry_id] * 3
+
+
+async def test_personal_mail_api(api: Any) -> None:
+    """Any allowed user connects their own mailbox; errors come back as codes."""
+    init = _init_data()
+    mail = {"host": "imap.yandex.ru", "username": "o@yandex.ru", "password": "bad"}
+
+    status, body = await api.call(
+        {"init_data": init, "action": "set_mail", "mail": mail}
+    )
+    assert (status, body["error"]) == (400, "mail_auth")
+
+    mail["password"] = "app-pass"
+    status, body = await api.call(
+        {"init_data": init, "action": "set_mail", "mail": mail}
+    )
+    assert status == 200
+    assert body["mail"] == {
+        "host": "imap.yandex.ru",
+        "username": "o@yandex.ru",
+        "unread": 2,
+    }
+    assert "app-pass" not in str(body)
+
+    status, _ = await api.call({"init_data": init, "action": "remove_mail"})
+    assert status == 200
+    assert ("mail_off", USER_ID) in api.runtime.brain.calls
+
+
+async def test_personal_calendar_api(api: Any) -> None:
+    """A calendar link comes back only as its host; errors are codes."""
+    init = _init_data()
+    status, body = await api.call(
+        {"init_data": init, "action": "add_calendar", "name": "W", "url": "http://x"}
+    )
+    assert (status, body["error"]) == (400, "cal_bad_url")
+
+    secret = "https://cal.example.com/secret-token/basic.ics"
+    status, body = await api.call(
+        {"init_data": init, "action": "add_calendar", "name": "W", "url": secret}
+    )
+    assert status == 200
+    assert body["calendar"]["host"] == "cal.example.com"
+    assert "secret-token" not in str(body)
+
+    status, _ = await api.call(
+        {"init_data": init, "action": "remove_calendar", "id": "c1"}
+    )
+    assert ("cal_off", "c1") in api.runtime.brain.calls
+
+
+async def test_bot_users_limit_the_mini_app(api: Any) -> None:
+    """When bot users are set, others cannot open the Mini App."""
+    api.runtime.users = frozenset({1})
+    status, body = await api.call({"init_data": _init_data(), "action": "state"})
+    assert (status, body["error"]) == (401, "unauthorized")
+
+    api.runtime.users = frozenset({USER_ID})
+    status, _ = await api.call({"init_data": _init_data(), "action": "state"})
+    assert status == 200

@@ -48,7 +48,11 @@ replies through `telegram_bot` services.
 
    (*Settings → Devices & services → Add integration → Hearthkeeper*.)
 4. Pick the Telegram bot, then open **Configure** to choose the Assist pipeline
-   (agent, STT, TTS and voice come from it) and the reply mode.
+   (agent, STT, TTS and voice come from it), the **Bot users** (empty means
+   everyone the Telegram integration lets through), the **Mini App admins**
+   and the calendars, mailboxes and shopping list the family may use.
+   Briefings, quiet hours, the reply mode and weather are set by each user in
+   the Mini App.
 
 ## Commands
 
@@ -86,6 +90,74 @@ Replies are sent with `parse_mode=html`: Markdown from the agent (`**bold**`,
 `*` bullets, code spans, links) is converted to the small HTML subset Telegram
 renders, and everything else is escaped, so no literal asterisks reach the chat.
 
+### Custom skills
+
+In the Mini App, **Skills → My skills** holds requests you write once: a name,
+the text sent to your conversation agent, an optional time and weekdays. A
+skill with a time runs on those days (quiet hours skip it); any skill runs
+with ▶. Each skill talks to the agent in its own conversation, and the answer
+arrives in the chat as `✨ Name`. The agent runs it with the same rights as in
+the chat.
+
+### Calendar alerts
+
+**Settings → Calendar** can remind about events 5–60 minutes before they
+start, and announce today's birthdays (entries such as "День рождения Маши"
+or "Anna's birthday") at a chosen time with a greeting drafted by the agent.
+Both read the calendars of the user's briefing.
+
+### Connections and plugins
+
+**House → Connections** shows what Hearthkeeper uses from Home Assistant.
+Users pick their own weather, calendars from those the options share, and mailboxes; Telegram users listed
+under *Mini App admins* in the options can also change the shared sources
+there, which reloads the integration.
+
+Mail is personal: each user connects their own mailbox in **House →
+Connections → Mail** with an e-mail address and an app password. Hearthkeeper
+checks the login before saving, keeps the password in its own private store
+(never sent back to the page, logged or included in diagnostics), and reads
+only the headers of unread messages over IMAP with TLS, without marking them
+as read. The shared IMAP sensors from the options remain a fallback.
+
+Calendars can be personal too: in **House → Connections → Calendars** a
+user picks from the Home Assistant calendars the options share and can add up to five of their own
+by a secret iCal link (Google, Yandex, iCloud, Outlook). Those are read only
+for that user — in their briefing, calendar answers, event reminders and
+birthdays — and never become Home Assistant entities. Only `https` (or `webcal`) links
+are fetched — a calendar served from the home network works too — and a link
+is saved only when the reply really is an iCalendar. It is kept in a private
+store and shown back only as its host.
+
+Connection plugins extend the list the way HACS adds repositories. A plugin is
+a GitHub repository with a `connection.json` at its root and no code; admins
+add it in the Mini App (or under *Connection plugins* in the options) as
+`owner/repo` or `owner/repo@branch`:
+
+```json
+{
+  "id": "nordpool",
+  "name": {"ru": "Цена электричества", "en": "Electricity price"},
+  "description": {"en": "Hourly prices in the morning briefing"},
+  "icon": "bolt",
+  "color": "#ff9f0a",
+  "integration": {"domain": "nordpool", "hacs": "custom-components/nordpool"},
+  "provides": {
+    "kind": "briefing",
+    "domain": "sensor",
+    "line": {"ru": "⚡ {name}: {state} {unit}", "en": "⚡ {name}: {state} {unit}"}
+  }
+}
+```
+
+`kind` is `briefing` (each entity of the integration becomes a line in the
+morning briefing; `line` may use `{name}`, `{state}` and `{unit}`), or
+`calendar`, `mail`, `weather` or `todo` (the integration's entities become
+choices for that source). Until the integration is installed, the plugin page
+links to it in HACS (`hacs`) or to its setup in Home Assistant (`domain`).
+Hearthkeeper builds those links itself and never runs anything from the
+repository. Plugins are cached for six hours.
+
 ## Briefing
 
 Open **Configure** and pick the sources you already use in Home Assistant:
@@ -99,8 +171,9 @@ Open **Configure** and pick the sources you already use in Home Assistant:
   preferred AI Task for a 3–5 line digest; it is off by default;
 - **Home status** — lights on, open doors and windows, active climate.
 
-Set **Briefing time** (default 08:00) and turn on **Morning briefing**. The
-daily message goes to every private chat the bot has already talked in.
+Each user sets up their briefings — morning, evening or mail, at their own
+times — in the Mini App. Installs that had the household morning briefing
+turned on before keep it for users who have not set up their own.
 `/brief` and `hearthkeeper.brief` build the same summary on demand; an empty or
 broken source only removes its own section.
 
@@ -109,16 +182,17 @@ broken source only removes its own section.
 `/web` sends a button that opens Hearthkeeper inside Telegram. The Mini App is
 a settings dashboard, not a second chat:
 
-- **Home** — the agent, the reply mode, a new conversation and active reminders;
-- **Skills** — the phrases Hearthkeeper answers without the agent;
-- **House** — the briefing sources and schedule;
-- **Settings** — personal briefing time and sources, quiet hours, language and
-  the bot account. Quick actions (`/brief`, `/shop`, `/mail`, `/remind`) send
+- **Home** — the agent, quick actions and active reminders;
+- **Skills** — your own skills, ready-made ones and the built-in phrases;
+- **House** — connections: what Hearthkeeper reads (agent, weather, calendars,
+  mail, shopping list, voice, home status, plugins);
+- **Settings** — how the bot behaves: reply mode, briefings and their times,
+  calendar alerts, quiet hours, the helper and the bot account. Quick actions (`/brief`, `/shop`, `/mail`, `/remind`) send
   the command to the chat and the answer arrives as a normal message.
 
 Personal settings belong to the Telegram account that opened the app and are
-kept with its private chat; the integration options stay the household defaults
-and are edited only in Home Assistant. Calendars and mailboxes can only be
+kept with its private chat; values saved in the integration options earlier
+stay the household defaults. Calendars and mailboxes can only be
 picked from the pool an administrator already enabled.
 
 The page is served at `/api/hearthkeeper/webapp` and carries no Home Assistant

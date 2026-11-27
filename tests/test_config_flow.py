@@ -21,6 +21,7 @@ from custom_components.hearthkeeper.const import (
     CONF_PIPELINE_ID,
     CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
+    CONF_USERS,
     CONF_WEBAPP_URL,
     DOMAIN,
 )
@@ -101,14 +102,12 @@ async def test_options_pick_pipeline(
         result["flow_id"],
         {
             CONF_PIPELINE_ID: "pipeline-1",
-            CONF_REPLY_MODE: "voice",
             CONF_ALLOW_GROUPS: True,
         },
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_PIPELINE_ID] == "pipeline-1"
-    assert entry.options[CONF_REPLY_MODE] == "voice"
     assert entry.options[CONF_ALLOW_GROUPS] is True
 
 
@@ -123,7 +122,7 @@ async def test_options_pipeline_none_is_stored_as_null(
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {CONF_PIPELINE_ID: "none", CONF_REPLY_MODE: "text"},
+        {CONF_PIPELINE_ID: "none"},
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -143,7 +142,6 @@ async def test_options_store_webapp_url(
         result["flow_id"],
         {
             CONF_PIPELINE_ID: "none",
-            CONF_REPLY_MODE: "text",
             CONF_WEBAPP_URL: "https://tunnel.example.org/",
         },
     )
@@ -165,7 +163,6 @@ async def test_options_reject_non_https_webapp_url(
         result["flow_id"],
         {
             CONF_PIPELINE_ID: "none",
-            CONF_REPLY_MODE: "text",
             CONF_WEBAPP_URL: "http://tunnel.example.org",
         },
     )
@@ -178,9 +175,19 @@ async def test_options_reject_non_https_webapp_url(
 async def test_options_store_briefing_sources(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The options flow stores the briefing time and the picked entities."""
+    """The form stores the shared sources and keeps fields moved to the app."""
     monkeypatch.setattr(config_flow, "async_list_pipelines", lambda hass: [PIPELINE])
-    entry = MockConfigEntry(domain=DOMAIN, data={CONF_TELEGRAM_ENTRY: "x"})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_TELEGRAM_ENTRY: "x"},
+        options={
+            CONF_REPLY_MODE: "voice",
+            CONF_BRIEF_ENABLED: True,
+            CONF_BRIEF_TIME: "07:30:00",
+            CONF_BRIEF_WEATHER: "weather.home",
+            CONF_BRIEF_HOME: False,
+        },
+    )
     entry.add_to_hass(hass)
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
@@ -188,20 +195,19 @@ async def test_options_store_briefing_sources(
         result["flow_id"],
         {
             CONF_PIPELINE_ID: "pipeline-1",
-            CONF_REPLY_MODE: "text",
-            CONF_BRIEF_ENABLED: True,
-            CONF_BRIEF_TIME: "07:30:00",
             CONF_BRIEF_CALENDARS: ["calendar.inbox"],
-            CONF_BRIEF_WEATHER: "weather.home",
             CONF_BRIEF_MAIL: ["sensor.mail"],
-            CONF_BRIEF_HOME: False,
+            CONF_USERS: ["42"],
         },
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_BRIEF_CALENDARS] == ["calendar.inbox"]
+    assert entry.options[CONF_BRIEF_MAIL] == ["sensor.mail"]
+    assert entry.options[CONF_USERS] == ["42"]
+    # Values set before the fields moved to the Mini App survive a save.
+    assert entry.options[CONF_REPLY_MODE] == "voice"
     assert entry.options[CONF_BRIEF_ENABLED] is True
     assert entry.options[CONF_BRIEF_TIME] == "07:30:00"
-    assert entry.options[CONF_BRIEF_CALENDARS] == ["calendar.inbox"]
     assert entry.options[CONF_BRIEF_WEATHER] == "weather.home"
-    assert entry.options[CONF_BRIEF_MAIL] == ["sensor.mail"]
     assert entry.options[CONF_BRIEF_HOME] is False

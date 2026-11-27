@@ -211,3 +211,19 @@ async def test_send_text_converts_markdown_to_html(hass: HomeAssistant) -> None:
     assert message_id == 7
     assert calls[0]["parse_mode"] == "html"
     assert calls[0]["message"] == "• привет <b>мир</b>"
+
+
+def test_bot_users_limit_who_is_answered(hass: HomeAssistant) -> None:
+    """With bot users set, only they are answered, in private and in groups."""
+    transport = _transport(hass, users=frozenset({42}), allow_groups=True)
+    transport._bot_username = "hearth_bot"
+
+    assert transport._accept(_message(chat_id=42)) is True
+    assert transport._accept(_message(chat_id=7)) is False
+    group = {"chat_id": -100, "text": "@hearth_bot hi"}
+    assert transport._accept(_message(user_id=42, **group)) is True
+    assert transport._accept(_message(user_id=7, **group)) is False
+    assert transport._accept(_message(**group)) is False
+
+    everyone = _transport(hass)
+    assert everyone._accept(_message(chat_id=7)) is True
