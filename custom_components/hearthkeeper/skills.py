@@ -400,30 +400,46 @@ class SkillRouter:
                 return SkillRequest(intent_type, day)
         return None
 
-    async def async_run(self, request: SkillRequest, language: str) -> str:
-        """Run a matched skill and return its text."""
+    async def async_run(
+        self,
+        request: SkillRequest,
+        language: str,
+        *,
+        sources: BriefingSources | None = None,
+        mail_text: str | None = None,
+    ) -> str:
+        """Run a matched skill and return its text.
+
+        ``sources`` are the asking user's own; ``mail_text`` is their personal
+        mailbox digest, which replaces the shared mail sensors.
+        """
         texts = _SKILL_TEXTS.get(language, _SKILL_TEXTS[DEFAULT_LANGUAGE])
+        sources = sources or self.sources
 
         if request.intent == INTENT_BRIEF:
-            return await async_build_briefing(self.hass, self.sources, language)
+            return await async_build_briefing(
+                self.hass, sources, language, personal_mail=mail_text
+            )
 
         if request.intent == INTENT_CALENDAR:
             answer = await async_calendar_day(
                 self.hass,
-                self.sources,
+                sources,
                 language,
                 tomorrow=request.day == DAY_TOMORROW,
             )
             return answer or texts["calendar_missing"]
 
         if request.intent == INTENT_HOME:
-            answer = home_status_text(self.hass, self.sources, language)
+            answer = home_status_text(self.hass, sources, language)
             return answer or texts["home_disabled"]
 
         if request.intent == INTENT_MAIL:
+            if mail_text is not None:
+                return mail_text
             answer = await async_mail_digest(
                 self.hass,
-                self.sources,
+                sources,
                 language,
                 mailbox=self._mailbox,
                 allow_cloud=self._allow_cloud_for_mail,

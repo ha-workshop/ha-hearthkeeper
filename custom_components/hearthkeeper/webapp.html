@@ -59,8 +59,59 @@ svg{display:block}
 .pill-accent{background:linear-gradient(90deg,#8b5cf6,#c026d3);color:#fff}
 .pill svg{flex:none}
 .mascot{
-  width:96px;height:96px;margin:22px auto 10px;position:relative;z-index:1;
-  filter:drop-shadow(0 8px 24px rgba(0,0,0,.25));
+  display:block;width:96px;height:96px;margin:22px auto 10px;position:relative;z-index:1;padding:0;
+  filter:drop-shadow(0 8px 24px rgba(0,0,0,.25));-webkit-tap-highlight-color:transparent;
+}
+.mascot svg{width:100%;height:100%;overflow:visible}
+.mascot{--m-tint:#e8e0ff}
+.mascot[data-color="mint"]{--m-tint:#b8f0d8}
+.mascot[data-color="peach"]{--m-tint:#ffd6bd}
+.mascot[data-color="sky"]{--m-tint:#bfe3ff}
+.mascot[data-color="sun"]{--m-tint:#fff0a8}
+.mascot[data-color="rose"]{--m-tint:#ffc9dc}
+.m-edit{position:absolute;right:2px;bottom:8px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(255,255,255,.28);color:#fff;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.35)}
+.swatches{display:flex;gap:10px;justify-content:space-between;padding:0 4px}
+.swatch{width:40px;height:40px;border-radius:50%;border:3px solid transparent;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.swatch.on{border-color:var(--accent)}
+.mascot *{transform-box:fill-box;transform-origin:center}
+.m-body{animation:m-float 4s ease-in-out infinite}
+.m-glow{animation:m-glow 4s ease-in-out infinite;opacity:.8}
+.m-eyes{transition:transform .25s ease-out}
+.m-eye{transition:transform .08s}
+.blink .m-eye{transform:scaleY(.1)}
+.m-arcs path,.m-mouth,.m-extra>*{opacity:0;transition:opacity .2s}
+.m-smile{opacity:1}
+.mascot.bounce .m-body{animation:m-bounce .6s cubic-bezier(.3,1.6,.5,1)}
+/* moods */
+.mascot[data-mood="happy"] .m-eyes,.mascot[data-mood="sleepy"] .m-eyes{opacity:0}
+.mascot[data-mood="happy"] .m-happy,.mascot[data-mood="sleepy"] .m-closed{opacity:1}
+.mascot[data-mood="happy"] .m-smile,.mascot[data-mood="sleepy"] .m-smile,
+.mascot[data-mood="sad"] .m-smile,.mascot[data-mood="think"] .m-smile,.mascot[data-mood="wow"] .m-smile{opacity:0}
+.mascot[data-mood="happy"] .m-grin{opacity:1}
+.mascot[data-mood="happy"] .m-heart{opacity:1;animation:m-rise 1.2s ease-out}
+.mascot[data-mood="happy"] .m-blush{opacity:.6}
+.mascot[data-mood="sleepy"] .m-flat{opacity:1}
+.mascot[data-mood="sleepy"] .m-zzz{opacity:.9;animation:m-zzz 2.4s ease-in-out infinite}
+.mascot[data-mood="sleepy"] .m-body{animation-duration:6s}
+.mascot[data-mood="sleepy"] .m-glow{opacity:.35}
+.mascot[data-mood="sad"] .m-sad{opacity:1}
+.mascot[data-mood="sad"] .m-eye{transform:scaleY(.75) translateY(1px)}
+.mascot[data-mood="think"] .m-flat{opacity:1}
+.mascot[data-mood="think"] .m-dots{opacity:1}
+.mascot[data-mood="think"] .m-dots circle{animation:m-dot 1.2s ease-in-out infinite}
+.mascot[data-mood="think"] .m-dots circle:nth-child(2){animation-delay:.2s}
+.mascot[data-mood="think"] .m-dots circle:nth-child(3){animation-delay:.4s}
+.mascot[data-mood="wow"] .m-o{opacity:1}
+.mascot[data-mood="wow"] .m-eye{transform:scale(1.15)}
+@keyframes m-float{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(-3px) scale(1.01,.99)}}
+@keyframes m-glow{0%,100%{transform:scale(.95)}50%{transform:scale(1.05)}}
+@keyframes m-bounce{0%{transform:scale(1,1)}30%{transform:scale(1.12,.86) translateY(3px)}60%{transform:scale(.94,1.08) translateY(-6px)}100%{transform:scale(1,1)}}
+@keyframes m-rise{from{transform:translateY(6px) scale(.6);opacity:0}to{transform:translateY(-4px) scale(1);opacity:1}}
+@keyframes m-zzz{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes m-dot{0%,100%{opacity:.3}50%{opacity:1}}
+@media (prefers-reduced-motion: reduce){
+  .mascot *{animation:none!important;transition:none!important}
 }
 .hello{text-align:center;font-size:28px;font-weight:800;color:#fff;position:relative;z-index:1;letter-spacing:-.3px}
 .sub{text-align:center;color:rgba(255,255,255,.75);font-size:14px;margin-top:4px;position:relative;z-index:1}
@@ -100,6 +151,58 @@ svg{display:block}
 }
 .chip.off{background:rgba(142,142,147,.18);color:var(--hint)}
 .chip.ok{background:rgba(52,199,89,.16);color:var(--good)}
+.add.on{color:var(--good)}
+.form{padding:4px 4px 0;display:flex;flex-direction:column;gap:10px}
+.form label{font-size:13px;color:var(--hint);margin:0 4px -4px}
+.form input,.form textarea{width:100%;font:16px/1.35 inherit;font-family:inherit;color:var(--text);background:var(--card-2);border:0;border-radius:12px;padding:12px;color-scheme:inherit}
+.form textarea{min-height:110px;resize:vertical}
+.form .hint{font-size:12px;color:var(--hint);margin:-4px 4px 0}
+.time-row{display:flex;gap:8px;align-items:center}
+.time-row input{flex:1;min-width:0}
+/* Sub page */
+.sub-head{display:flex;align-items:center;gap:6px;padding:16px 12px 4px}
+.sub-head h1{font-size:22px;font-weight:800;letter-spacing:-.3px;margin:0}
+.sub-back{width:36px;height:36px;display:grid;place-items:center;color:var(--accent-2)}
+.sub-back[hidden]{display:none}
+.sub-back[hidden] + h1{padding-left:8px}
+.subpage .section{margin-top:18px}
+.sub-label{font-size:14px;font-weight:600;color:var(--hint);margin:0 16px 6px}
+.subpage .note{font-size:12px;margin:6px 16px 0}
+.pill-val{background:var(--card-2);border-radius:8px;padding:4px 10px;font-weight:600;font-variant-numeric:tabular-nums}
+body.on-sub .tabbar{display:none}
+/* Settings, grouped like iOS / Mira: quiet grey headers, compact rows */
+#page-settings .page-head{font-size:22px;padding:18px 20px 0}
+#page-settings .section{margin-top:20px}
+#page-settings .section-title{font-size:14px;font-weight:600;color:var(--hint);margin:0 16px 6px;letter-spacing:.1px}
+#page-settings .section-desc{font-size:12px;margin:-4px 16px 8px}
+#page-settings .card{border-radius:14px}
+#page-settings .row{min-height:46px;padding:9px 16px;gap:12px}
+#page-settings .row-title{font-size:16px}
+#page-settings .row-sub{font-size:12px}
+#page-settings .row-value{font-size:15px}
+#page-settings .row-icon{width:24px;height:24px}
+#page-settings .row-icon svg{width:22px;height:22px}
+#page-settings .row + .row::before{left:52px}
+#page-settings .row.plain + .row.plain::before,#page-settings .row.plain + .row::before{left:16px}
+#page-settings .account{padding:10px 16px}
+#page-settings .note{font-size:12px;margin:6px 16px 0}
+.ctile{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff;flex:none}
+.ctile svg{width:20px;height:20px}
+.ctile.off{filter:grayscale(1);opacity:.45}
+.row:has(.ctile){min-height:62px}
+.row:has(.ctile) + .row::before{left:64px}
+.row-sub.ok{color:var(--good)}
+.row-sub.muted{color:var(--hint)}
+.gear{color:var(--hint);flex:none;display:grid;place-items:center;width:32px;height:32px}
+.steps{margin:0 4px;padding-left:18px;color:var(--text);font-size:15px;line-height:1.45}
+.steps li{margin:4px 0}
+.days{display:flex;gap:6px}
+.day{flex:1;padding:8px 0;border-radius:10px;background:var(--card-2);color:var(--hint);font-size:13px;font-weight:600;text-align:center}
+.day.on{background:var(--accent);color:#fff}
+.link-btn{color:var(--accent-2);font-weight:600;font-size:14px;padding:8px 4px;white-space:nowrap}
+.form .btn{margin-top:4px}
+.quote{background:var(--card);border-radius:12px;padding:12px;font-size:15px;line-height:1.4;white-space:pre-wrap}
+.warn-note{font-size:12px;color:var(--hint);margin:2px 4px 0}
 .meta{color:var(--hint);font-size:13px;display:flex;align-items:center;gap:4px;margin-top:2px}
 
 /* Grid of quick actions */
@@ -140,8 +243,12 @@ svg{display:block}
 .sheet{
   position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--bg);border-radius:22px 22px 0 0;
   padding:8px 16px calc(20px + env(safe-area-inset-bottom));transform:translateY(105%);transition:transform .25s ease;
-  max-height:80vh;overflow:auto;
+  max-height:80vh;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
 }
+/* While a sheet is open the page under it must not scroll (iOS ignores
+   overflow:hidden on body, so the body is pinned in place instead). */
+body.sheet-lock{position:fixed;left:0;right:0;overflow:hidden}
+.backdrop{touch-action:none}
 .sheet.open{transform:none}
 .sheet-grip{width:36px;height:5px;border-radius:3px;background:var(--card-2);margin:4px auto 12px}
 .sheet-title{font-size:18px;font-weight:700;margin:0 4px 12px}
@@ -189,27 +296,47 @@ svg{display:block}
         <span data-i18n="to_chat"></span>
       </button>
     </div>
-    <svg class="mascot" viewBox="0 0 100 100" aria-hidden="true">
+    <button class="mascot" id="mascot" type="button" aria-label="Hearthkeeper">
+    <svg viewBox="0 0 100 100" aria-hidden="true">
       <defs>
         <radialGradient id="face" cx="50%" cy="40%" r="50%">
           <stop offset="0" stop-color="#fff" stop-opacity=".95"/>
-          <stop offset="100%" stop-color="#e8e0ff" stop-opacity=".85"/>
+          <stop offset="100%" style="stop-color:var(--m-tint)" stop-opacity=".9"/>
+        </radialGradient>
+        <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stop-color="#ffd59e" stop-opacity=".55"/>
+          <stop offset="100%" stop-color="#ffd59e" stop-opacity="0"/>
         </radialGradient>
       </defs>
-      <!-- face -->
-      <ellipse cx="50" cy="52" rx="22" ry="20" fill="url(#face)"/>
-      <!-- eyes -->
-      <ellipse cx="42" cy="48" rx="3.5" ry="4.5" fill="#1d1b2e"/>
-      <ellipse cx="58" cy="48" rx="3.5" ry="4.5" fill="#1d1b2e"/>
-      <!-- eye shine -->
-      <circle cx="43.5" cy="46" r="1.5" fill="#fff"/>
-      <circle cx="59.5" cy="46" r="1.5" fill="#fff"/>
-      <!-- blush -->
-      <ellipse cx="32" cy="54" rx="5" ry="3" fill="#ff8a8a" opacity=".3"/>
-      <ellipse cx="68" cy="54" rx="5" ry="3" fill="#ff8a8a" opacity=".3"/>
-      <!-- smile -->
-      <path d="M42 56c2 3 5 4 8 4s6-1 8-4" fill="none" stroke="#1d1b2e" stroke-width="1.5" stroke-linecap="round"/>
+      <circle class="m-glow" cx="50" cy="54" r="40" fill="url(#glow)"/>
+      <g class="m-body">
+        <ellipse cx="50" cy="52" rx="22" ry="20" fill="url(#face)"/>
+        <g class="m-eyes">
+          <g class="m-eye"><ellipse cx="42" cy="48" rx="3.5" ry="4.5" fill="#1d1b2e"/><circle cx="43.5" cy="46" r="1.5" fill="#fff"/></g>
+          <g class="m-eye"><ellipse cx="58" cy="48" rx="3.5" ry="4.5" fill="#1d1b2e"/><circle cx="59.5" cy="46" r="1.5" fill="#fff"/></g>
+        </g>
+        <g class="m-arcs" fill="none" stroke="#1d1b2e" stroke-width="1.8" stroke-linecap="round">
+          <path class="m-happy" d="M38.5 49c1.5-2.6 5.5-2.6 7 0M54.5 49c1.5-2.6 5.5-2.6 7 0"/>
+          <path class="m-closed" d="M38.5 48.5c1.5 1.8 5.5 1.8 7 0M54.5 48.5c1.5 1.8 5.5 1.8 7 0"/>
+        </g>
+        <ellipse class="m-blush" cx="32" cy="54" rx="5" ry="3" fill="#ff8a8a" opacity=".3"/>
+        <ellipse class="m-blush" cx="68" cy="54" rx="5" ry="3" fill="#ff8a8a" opacity=".3"/>
+        <g fill="none" stroke="#1d1b2e" stroke-width="1.5" stroke-linecap="round">
+          <path class="m-mouth m-smile" d="M42 56c2 3 5 4 8 4s6-1 8-4"/>
+          <path class="m-mouth m-grin" d="M42 56c2 5 5 6 8 6s6-1 8-6Z" fill="#ff6b81" stroke-linejoin="round"/>
+          <path class="m-mouth m-flat" d="M45 59h10"/>
+          <path class="m-mouth m-sad" d="M43 61c2-3 4.5-4 7-4s5 1 7 4"/>
+          <ellipse class="m-mouth m-o" cx="50" cy="59" rx="2.6" ry="3" fill="#1d1b2e" stroke="none"/>
+        </g>
+      </g>
+      <g class="m-extra" fill="#fff" font-family="inherit" font-weight="700">
+        <text class="m-zzz" x="72" y="34" font-size="9">z<tspan dx="1" dy="-5" font-size="7">z</tspan></text>
+        <g class="m-dots"><circle cx="74" cy="34" r="2"/><circle cx="80" cy="28" r="2.4"/><circle cx="87" cy="21" r="2.8"/></g>
+        <path class="m-heart" d="M78 30c-2-3-7-2-6 2 .6 2.4 6 6 6 6s5.4-3.6 6-6c1-4-4-5-6-2Z" fill="#ff6b81"/>
+      </g>
     </svg>
+    <span class="m-edit" id="mascot-edit" role="button" aria-label="edit"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.83 2.83 0 0 0-4-4L4 16Z"/></svg></span>
+    </button>
     <h1 class="hello" id="hello"></h1>
     <p class="sub" id="hello-sub"></p>
   </header>
@@ -235,6 +362,17 @@ svg{display:block}
 <main class="page" id="page-skills">
   <h1 class="page-head" data-i18n="tab_skills"></h1>
   <section class="section" style="margin-top:8px">
+    <h2 class="section-title" data-i18n="my_skills"></h2>
+    <p class="section-desc" data-i18n="my_skills_desc"></p>
+    <div class="card" id="my-skills"></div>
+  </section>
+  <section class="section">
+    <h2 class="section-title" data-i18n="ready_skills"></h2>
+    <p class="section-desc" data-i18n="ready_skills_desc"></p>
+    <div class="card" id="ready-skills"></div>
+  </section>
+  <section class="section">
+    <h2 class="section-title" data-i18n="builtin_skills"></h2>
     <p class="section-desc" data-i18n="skills_desc"></p>
     <div class="card" id="skills"></div>
   </section>
@@ -244,14 +382,9 @@ svg{display:block}
 <main class="page" id="page-house">
   <h1 class="page-head" data-i18n="tab_house"></h1>
   <section class="section" style="margin-top:8px">
-    <h2 class="section-title" data-i18n="sources"></h2>
-    <p class="section-desc" data-i18n="sources_desc"></p>
+    <h2 class="section-title" data-i18n="connections"></h2>
+    <p class="section-desc" data-i18n="connections_desc"></p>
     <div class="card" id="sources"></div>
-  </section>
-  <section class="section">
-    <h2 class="section-title" data-i18n="schedule"></h2>
-    <p class="section-desc" data-i18n="schedule_desc"></p>
-    <div class="card" id="schedule"></div>
   </section>
 </main>
 
@@ -272,14 +405,14 @@ svg{display:block}
     <div class="card" id="settings-brief"></div>
   </section>
   <section class="section">
+    <h2 class="section-title" data-i18n="my_calendar"></h2>
+    <p class="section-desc" data-i18n="my_calendar_desc"></p>
+    <div class="card" id="settings-calendar"></div>
+  </section>
+  <section class="section">
     <h2 class="section-title" data-i18n="my_quiet"></h2>
     <p class="section-desc" data-i18n="my_quiet_desc"></p>
     <div class="card" id="settings-quiet"></div>
-  </section>
-  <section class="section">
-    <h2 class="section-title" data-i18n="shared"></h2>
-    <p class="section-desc" data-i18n="shared_desc"></p>
-    <div class="card" id="settings-voice"></div>
   </section>
   <section class="section">
     <h2 class="section-title" data-i18n="app"></h2>
@@ -289,6 +422,15 @@ svg{display:block}
 </main>
 
 <!-- Tab bar -->
+<!-- ============ Sub page (opened from a list, closed with Telegram's back button) ============ -->
+<main class="page subpage" id="page-sub">
+  <header class="sub-head">
+    <button class="sub-back" id="sub-back" type="button" aria-label="back"><svg width="12" height="20" viewBox="0 0 12 20"><path d="M10 2 2 10l8 8" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <h1 id="sub-title"></h1>
+  </header>
+  <div id="sub-body"></div>
+</main>
+
 <nav class="tabbar" id="tabbar">
   <button class="tab active" data-tab="home">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 3 10.4V20a1 1 0 0 0 1 1h5.5v-6h5v6H20a1 1 0 0 0 1-1v-9.6Z"/></svg>
@@ -328,13 +470,62 @@ svg{display:block}
   const I18N = {
     ru: {
       to_chat: "Чат", hello: "Привет, {name}!", hello_anon: "Привет!",
-      hello_sub: "Hearthkeeper — ваш дом в Telegram",
+      hello_sub: "Hearthkeeper — ваш дом в Telegram", hello_sub_named: "{name} из Hearthkeeper — ваш дом в Telegram",
+      mascot_title: "Ваш помощник", mascot_name: "Имя", mascot_name_ph: "например «Уголёк»", mascot_color: "Цвет",
+      mascot_row: "Помощник",
       preview: "Предпросмотр с примером данных. Откройте приложение из Telegram командой /web.",
       quick: "Быстрые действия", quick_desc: "Ответ придёт в чат с ботом",
       reminders: "Напоминания", reminders_desc: "Ставятся фразой «напомни через 20 минут…» или /remind",
       no_reminders: "Активных напоминаний нет", cancel_all: "Отменить все",
       tab_home: "Главная", tab_skills: "Навыки", tab_house: "Дом", tab_settings: "Настройки",
       skills_desc: "Фразы, на которые Hearthkeeper отвечает сам — даже с локальной моделью",
+      plugins_title: "Плагины", add_plugin: "Добавить подключение", plugin_badge: "плагин",
+      plugin_ready: "Подключено · сущностей: {n}", plugin_missing: "Нужна интеграция {domain}",
+      plugin_repo: "Репозиторий GitHub", plugin_repo_ph: "owner/repo", plugin_check: "Проверить",
+      plugin_add: "Добавить", plugin_remove: "Удалить подключение", plugin_added: "Добавлено — Hearthkeeper перезапускается",
+      plugin_removed: "Удалено — Hearthkeeper перезапускается", plugin_bad: "В репозитории нет корректного connection.json",
+      plugin_bad_repo: "Укажите репозиторий как owner/repo", plugin_open_hacs: "Открыть в HACS", plugin_open_ha: "Добавить интеграцию в HA",
+      plugin_github: "Открыть на GitHub", plugin_status: "Состояние", plugin_gives: "Что даёт",
+      plugin_kind_briefing: "Строки в утренней сводке", plugin_kind_calendar: "Календари для сводки", plugin_kind_mail: "Почтовые ящики для сводки",
+      plugin_kind_weather: "Погода для сводки", plugin_kind_todo: "Список покупок",
+      plugin_note: "Плагин — это описание без кода: Hearthkeeper только читает connection.json и сущности указанной интеграции.",
+      confirm_remove_plugin: "Удалить подключение «{name}»?",
+      cal_title: "Мои календари", cal_ha: "Из Home Assistant", cal_ha_pick: "Календари Home Assistant",
+      cal_links: "Свои по ссылке", cal_links_desc: "Видны только вам, в Home Assistant не попадают",
+      cal_add: "Добавить по ссылке", cal_name: "Название", cal_name_ph: "например «Работа»", cal_url: "Секретная iCal-ссылка",
+      cal_url_ph: "https://… или webcal://…", cal_save: "Проверить и добавить", cal_checking: "Скачиваю календарь…",
+      cal_added: "Добавлено · сегодня событий: {n}", cal_remove_q: "Удалить календарь «{name}»?", cal_removed: "Календарь удалён",
+      cal_where: "Где взять ссылку", cal_help_google: "Google: Настройки календаря → «Секретный адрес в формате iCal»",
+      cal_help_yandex: "Яндекс: Настройки календаря → Экспорт → ссылка iCal", cal_help_icloud: "iCloud: Поделиться → Публичный календарь → скопировать ссылку",
+      cal_help_outlook: "Outlook: Настройки → Общие календари → Опубликовать → ICS",
+      cal_note: "Ссылка работает как пароль: она хранится в Home Assistant, в приложении показывается только адрес сервера.",
+      cal_bad_url: "Нужна https- или webcal-ссылка на календарь", cal_not_found: "Календарь по ссылке не найден",
+      cal_not_ics: "По этой ссылке не календарь", cal_unreachable: "Не удалось скачать календарь", cal_too_large: "Календарь слишком большой",
+      cal_too_many: "Не больше 5 своих календарей", cal_duplicate: "Этот календарь уже добавлен", cal_bad_name: "Введите название",
+      mail_title: "Моя почта", mail_email: "E-mail (логин)", mail_password: "Пароль приложения",
+      mail_password_saved: "сохранён — оставьте пустым, чтобы не менять", mail_server: "IMAP-сервер", mail_port: "Порт",
+      mail_folder: "Папка", mail_more: "Сервер и папка", mail_connect_btn: "Проверить и подключить", mail_checking: "Проверяю вход…",
+      mail_connected: "Подключено · непрочитанных: {n}", mail_edit: "Изменить", mail_disconnect: "Отключить почту",
+      mail_confirm_off: "Отключить почту {name}? Пароль будет удалён.", mail_off_done: "Почта отключена",
+      mail_note: "Нужен пароль приложения: Gmail, Яндекс, Mail.ru и iCloud не пускают по обычному паролю. Он хранится в Home Assistant, больше нигде не показывается, а письма не помечаются прочитанными.",
+      mail_family: "Общие ящики семьи", mail_family_sub: "из настроек интеграции",
+      mail_auth: "Неверный логин или пароль приложения", mail_connect: "Не удалось подключиться к серверу",
+      mail_folder_err: "Такой папки нет на сервере", mail_bad_host: "Проверьте адрес IMAP-сервера", mail_need_password: "Введите пароль приложения",
+      connections: "Подключения", connections_desc: "Что из Home Assistant использует Hearthkeeper. Шестерёнка — выбрать своё",
+      connected: "Подключено", not_connected: "Не подключено", conn_admin: "общая настройка",
+      c_weather: "Погода", c_calendar: "Календари", c_mail: "Почта", c_todo: "Список покупок",
+      c_voice: "Голос", c_agent: "ИИ-агент", c_home: "Состояние дома",
+      how_title: "Как подключить «{name}»", how_ha: "Открыть в Home Assistant", how_hk: "Настройки Hearthkeeper",
+      how_weather: "Добавьте интеграцию погоды в Home Assistant, например Met.no.",
+      how_calendar: "Добавьте календарь в Home Assistant: Google, CalDAV или локальный.",
+      how_mail: "Добавьте почтовый ящик через интеграцию IMAP в Home Assistant.",
+      how_todo: "Добавьте список дел в Home Assistant: «Список покупок» или локальный.",
+      how_voice: "Настройте голосовой ассистент Assist с распознаванием и синтезом речи.",
+      how_then: "Затем администратор выбирает его в настройках интеграции Hearthkeeper.",
+      admin_badge: "админ", family_pick: "Для всей семьи", my_pick: "Только для меня",
+      admin_saved: "Сохранено — Hearthkeeper перезапускается", none_found: "В Home Assistant таких сущностей нет",
+      forbidden: "Это может менять только администратор",
+      shared_note: "Этот источник общий для семьи и меняется в настройках интеграции Hearthkeeper в Home Assistant.",
       sources: "Источники сводки", sources_desc: "Сущности Home Assistant, из которых собирается сводка",
       schedule: "Расписание", schedule_desc: "Когда приходит сводка и когда бот молчит",
       chat: "Чат", voice: "Голос", app: "Приложение",
@@ -347,6 +538,7 @@ svg{display:block}
       brief_daily: "Сводки", brief_at: "каждый день в {time}", brief_off: "сводки не настроены",
       brief_morning: "Утренняя", brief_morning_sub: "план на день",
       brief_evening: "Вечерняя", brief_evening_sub: "итог дня",
+      brief_mail: "Почта", brief_mail_sub: "непрочитанные письма в своё время",
       no_briefings: "Нет сводок", no_briefings_sub: "добавьте утреннюю или вечернюю",
       add_briefing: "Добавить сводку",
       brief_name: "Название", brief_name_ph: "например «Утро на даче»",
@@ -367,13 +559,34 @@ svg{display:block}
       s_mail: "Почта", s_mail_ph: "/mail — отправители и темы",
       s_remind: "Напоминания", s_remind_ph: "«напомни через 20 минут…»",
       s_voice: "Голосовые сообщения", s_voice_ph: "надиктуйте вопрос в чат",
+      my_skills: "Мои навыки", my_skills_desc: "Ваш запрос агенту — по расписанию или по кнопке",
+      create_skill: "Создать навык", no_skills: "Пока пусто — создайте первый навык",
+      skill_daily: "ежедневно в {time}", skill_weekdays: "по будням в {time}", skill_weekend: "по выходным в {time}", skill_on_days: "{days} в {time}", skill_days: "Дни", skill_days_hint: "Ни один не выбран — каждый день", days_short: "Пн,Вт,Ср,Чт,Пт,Сб,Вс", skills_limit: "Не больше {n} навыков — удалите ненужный", skill_manual: "по запросу", skill_ran: "{when}",
+      ago_today: "сегодня", ago_yesterday: "вчера", ago_days: "{n} дн. назад",
+      builtin_skills: "Встроенные фразы",
+      skill_name: "Название", skill_name_ph: "например «Шутка дня»",
+      skill_prompt: "Запрос агенту", skill_prompt_ph: "Что агент должен сделать — так же, как вы написали бы в чат",
+      skill_time: "Время", skill_time_hint: "Без времени навык запускается только кнопкой ▶", skill_no_time: "Без времени",
+      skill_enabled: "Присылать по расписанию", run_now: "Запустить сейчас", skill_sent: "Ответ придёт в чат",
+      edit_skill: "Изменить", delete_skill: "Удалить навык", confirm_delete_skill: "Удалить навык «{name}»?",
+      add_skill: "Добавить", skill_added: "Навык добавлен",
+      skill_warn: "Навык выполняет ваш агент — с теми же правами, что и в чате.",
+      need_fields: "Заполните название и запрос",
+      ready_skills: "Готовые навыки", ready_skills_desc: "Нажмите «+», посмотрите запрос и добавьте к себе — потом его можно поменять",
+      cat_food: "Еда", cat_fun: "Развлечения", cat_learn: "Обучение", cat_mood: "Настроение", cat_family: "Семья",
       cat_prod: "Продуктивность", cat_home: "Дом", cat_voice: "Голос",
       sent: "Готово — ответ в чате", error: "Не получилось. Попробуйте ещё раз",
       no_tts: "В пайплайне нет синтеза речи", unauthorized: "Нет доступа. Откройте приложение из Telegram",
       confirm_cancel: "Отменить все напоминания?",
       account_note: "Настройки ниже — ваши личные. У других членов семьи свои.",
       account_id: "ID {id}",
-      my_brief: "Моя сводка", my_brief_desc: "Когда и о чём бот рассказывает вам утром и вечером",
+      my_brief: "Мои сводки", my_brief_desc: "Когда бот присылает сводки",
+      brief_sources: "Что входит в сводку", brief_sources_sub: "настраивается на вкладке «Дом»",
+      brief_time_label: "Время уведомления", brief_tz: "Часовой пояс: {tz}", brief_what: "Что приходит",
+      my_calendar: "Календарь", my_calendar_desc: "Из ваших календарей в сводке",
+      event_reminder: "Напоминать о встречах", event_before: "за {n} мин", birthdays: "Дни рождения", birthdays_at: "в {time}",
+      birthdays_hint: "Утром бот напишет, у кого сегодня день рождения, и предложит поздравление",
+      no_calendars: "Сначала выберите календари в «Моя сводка»",
       my_quiet: "Мои тихие часы", my_quiet_desc: "Сводки не приходят, напоминания — без звука",
       shared: "Общие настройки", shared_desc: "Одинаковы для всех. Меняются в Home Assistant → Hearthkeeper → Настроить",
       brief_on: "Присылать сводку", time: "Время", from: "С", to: "До",
@@ -389,13 +602,62 @@ svg{display:block}
     },
     en: {
       to_chat: "Chat", hello: "Hi, {name}!", hello_anon: "Hi!",
-      hello_sub: "Hearthkeeper — your home in Telegram",
+      hello_sub: "Hearthkeeper — your home in Telegram", hello_sub_named: "{name} from Hearthkeeper — your home in Telegram",
+      mascot_title: "Your helper", mascot_name: "Name", mascot_name_ph: "e.g. “Ember”", mascot_color: "Colour",
+      mascot_row: "Helper",
       preview: "Preview with sample data. Open the app from Telegram with /web.",
       quick: "Quick actions", quick_desc: "The answer arrives in the bot chat",
       reminders: "Reminders", reminders_desc: "Say “remind me in 20 minutes…” or use /remind",
       no_reminders: "No active reminders", cancel_all: "Cancel all",
       tab_home: "Home", tab_skills: "Skills", tab_house: "House", tab_settings: "Settings",
       skills_desc: "Phrases Hearthkeeper answers itself — even with a local model",
+      plugins_title: "Plugins", add_plugin: "Add a connection", plugin_badge: "plugin",
+      plugin_ready: "Connected · entities: {n}", plugin_missing: "Needs the {domain} integration",
+      plugin_repo: "GitHub repository", plugin_repo_ph: "owner/repo", plugin_check: "Check",
+      plugin_add: "Add", plugin_remove: "Remove connection", plugin_added: "Added — Hearthkeeper is restarting",
+      plugin_removed: "Removed — Hearthkeeper is restarting", plugin_bad: "The repository has no valid connection.json",
+      plugin_bad_repo: "Write the repository as owner/repo", plugin_open_hacs: "Open in HACS", plugin_open_ha: "Add the integration in HA",
+      plugin_github: "Open on GitHub", plugin_status: "Status", plugin_gives: "What it gives",
+      plugin_kind_briefing: "Lines in the morning briefing", plugin_kind_calendar: "Calendars for the briefing", plugin_kind_mail: "Mailboxes for the briefing",
+      plugin_kind_weather: "Weather for the briefing", plugin_kind_todo: "Shopping list",
+      plugin_note: "A plugin is a description without code: Hearthkeeper only reads connection.json and the entities of the named integration.",
+      confirm_remove_plugin: "Remove the “{name}” connection?",
+      cal_title: "My calendars", cal_ha: "From Home Assistant", cal_ha_pick: "Home Assistant calendars",
+      cal_links: "Your own by link", cal_links_desc: "Only you see them; they never become Home Assistant entities",
+      cal_add: "Add by link", cal_name: "Name", cal_name_ph: "e.g. “Work”", cal_url: "Secret iCal link",
+      cal_url_ph: "https://… or webcal://…", cal_save: "Check and add", cal_checking: "Downloading the calendar…",
+      cal_added: "Added · events today: {n}", cal_remove_q: "Remove the “{name}” calendar?", cal_removed: "Calendar removed",
+      cal_where: "Where to get the link", cal_help_google: "Google: calendar settings → “Secret address in iCal format”",
+      cal_help_yandex: "Yandex: calendar settings → Export → iCal link", cal_help_icloud: "iCloud: Share → Public calendar → copy link",
+      cal_help_outlook: "Outlook: Settings → Shared calendars → Publish → ICS",
+      cal_note: "The link works like a password: it is kept in Home Assistant and the app shows only its server.",
+      cal_bad_url: "Use an https or webcal link to a calendar", cal_not_found: "No calendar at this link",
+      cal_not_ics: "This link is not a calendar", cal_unreachable: "Could not download the calendar", cal_too_large: "The calendar is too large",
+      cal_too_many: "No more than 5 calendars of your own", cal_duplicate: "This calendar is already added", cal_bad_name: "Enter a name",
+      mail_title: "My mail", mail_email: "E-mail (login)", mail_password: "App password",
+      mail_password_saved: "saved — leave empty to keep it", mail_server: "IMAP server", mail_port: "Port",
+      mail_folder: "Folder", mail_more: "Server and folder", mail_connect_btn: "Check and connect", mail_checking: "Checking the login…",
+      mail_connected: "Connected · unread: {n}", mail_edit: "Edit", mail_disconnect: "Disconnect mail",
+      mail_confirm_off: "Disconnect {name}? The password will be deleted.", mail_off_done: "Mail disconnected",
+      mail_note: "Use an app password: Gmail, Yandex, Mail.ru and iCloud refuse the regular one. It is kept in Home Assistant, never shown again, and messages are not marked as read.",
+      mail_family: "Family mailboxes", mail_family_sub: "from the integration options",
+      mail_auth: "Wrong login or app password", mail_connect: "Could not reach the server",
+      mail_folder_err: "No such folder on the server", mail_bad_host: "Check the IMAP server address", mail_need_password: "Enter the app password",
+      connections: "Connections", connections_desc: "What Hearthkeeper uses from Home Assistant. The gear picks your own",
+      connected: "Connected", not_connected: "Not connected", conn_admin: "shared setting",
+      c_weather: "Weather", c_calendar: "Calendars", c_mail: "Mail", c_todo: "Shopping list",
+      c_voice: "Voice", c_agent: "AI agent", c_home: "Home status",
+      how_title: "How to connect “{name}”", how_ha: "Open in Home Assistant", how_hk: "Hearthkeeper options",
+      how_weather: "Add a weather integration in Home Assistant, for example Met.no.",
+      how_calendar: "Add a calendar in Home Assistant: Google, CalDAV or a local one.",
+      how_mail: "Add a mailbox with the IMAP integration in Home Assistant.",
+      how_todo: "Add a to-do list in Home Assistant: Shopping list or a local one.",
+      how_voice: "Set up an Assist voice assistant with speech-to-text and text-to-speech.",
+      how_then: "Then an admin picks it in the Hearthkeeper integration options.",
+      admin_badge: "admin", family_pick: "For the whole family", my_pick: "Just for me",
+      admin_saved: "Saved — Hearthkeeper is restarting", none_found: "Home Assistant has no such entities",
+      forbidden: "Only an admin can change this",
+      shared_note: "This source is shared by the family and changes in the Hearthkeeper integration options in Home Assistant.",
       sources: "Briefing sources", sources_desc: "Home Assistant entities the briefing is built from",
       schedule: "Schedule", schedule_desc: "When the briefing arrives and when the bot stays quiet",
       chat: "Chat", voice: "Voice", app: "App",
@@ -408,6 +670,7 @@ svg{display:block}
       brief_daily: "Briefings", brief_at: "every day at {time}", brief_off: "no briefings configured",
       brief_morning: "Morning", brief_morning_sub: "plan for the day",
       brief_evening: "Evening", brief_evening_sub: "daily report",
+      brief_mail: "Mail", brief_mail_sub: "unread mail at a time of yours",
       no_briefings: "No briefings", no_briefings_sub: "add a morning or evening one",
       add_briefing: "Add briefing",
       brief_name: "Name", brief_name_ph: "e.g. «Weekend morning»",
@@ -428,13 +691,34 @@ svg{display:block}
       s_mail: "Mail", s_mail_ph: "/mail — senders and subjects",
       s_remind: "Reminders", s_remind_ph: "“remind me in 20 minutes…”",
       s_voice: "Voice messages", s_voice_ph: "dictate a question in the chat",
+      my_skills: "My skills", my_skills_desc: "Your request to the agent — on a schedule or with a tap",
+      create_skill: "Create a skill", no_skills: "Nothing yet — create your first skill",
+      skill_daily: "daily at {time}", skill_weekdays: "weekdays at {time}", skill_weekend: "weekends at {time}", skill_on_days: "{days} at {time}", skill_days: "Days", skill_days_hint: "None selected — every day", days_short: "Mo,Tu,We,Th,Fr,Sa,Su", skills_limit: "No more than {n} skills — delete one you don't need", skill_manual: "on demand", skill_ran: "{when}",
+      ago_today: "today", ago_yesterday: "yesterday", ago_days: "{n} days ago",
+      builtin_skills: "Built-in phrases",
+      skill_name: "Name", skill_name_ph: "e.g. “Joke of the day”",
+      skill_prompt: "Request to the agent", skill_prompt_ph: "What the agent should do — as you would write it in the chat",
+      skill_time: "Time", skill_time_hint: "Without a time the skill runs only with the ▶ button", skill_no_time: "No time",
+      skill_enabled: "Send on schedule", run_now: "Run now", skill_sent: "The answer will arrive in the chat",
+      edit_skill: "Edit", delete_skill: "Delete skill", confirm_delete_skill: "Delete the “{name}” skill?",
+      add_skill: "Add", skill_added: "Skill added",
+      skill_warn: "Your agent runs the skill — with the same rights as in the chat.",
+      need_fields: "Fill in the name and the request",
+      ready_skills: "Ready-made skills", ready_skills_desc: "Tap “+”, check the request and add it — you can change it later",
+      cat_food: "Food", cat_fun: "Fun", cat_learn: "Learning", cat_mood: "Mood", cat_family: "Family",
       cat_prod: "Productivity", cat_home: "Home", cat_voice: "Voice",
       sent: "Done — see the chat", error: "Something went wrong. Try again",
       no_tts: "The pipeline has no text-to-speech", unauthorized: "No access. Open the app from Telegram",
       confirm_cancel: "Cancel all reminders?",
       account_note: "The settings below are yours. Everyone in the family has their own.",
       account_id: "ID {id}",
-      my_brief: "My briefing", my_brief_desc: "When and what the bot tells you in the morning and evening",
+      my_brief: "My briefings", my_brief_desc: "When the bot sends you briefings",
+      brief_sources: "What the briefing includes", brief_sources_sub: "set up on the House tab",
+      brief_time_label: "Notification time", brief_tz: "Time zone: {tz}", brief_what: "What arrives",
+      my_calendar: "Calendar", my_calendar_desc: "From the calendars in your briefing",
+      event_reminder: "Remind about events", event_before: "{n} min before", birthdays: "Birthdays", birthdays_at: "at {time}",
+      birthdays_hint: "In the morning the bot says whose birthday it is and suggests a greeting",
+      no_calendars: "Pick calendars in “My briefing” first",
       my_quiet: "My quiet hours", my_quiet_desc: "No briefings, reminders arrive silently",
       shared: "Shared settings", shared_desc: "Same for everyone. Change them in Home Assistant → Hearthkeeper → Configure",
       brief_on: "Send the briefing", time: "Time", from: "From", to: "To",
@@ -483,6 +767,14 @@ svg{display:block}
     bell: '<path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4Z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
     sunrise: '<path d="M4 18h16M7 18a5 5 0 0 1 10 0M12 4v4M5.6 9.6 7 11M18.4 9.6 17 11M2 14h2M20 14h2"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7Z"/>',
+    car: '<path d="M5 16V11l2-5h10l2 5v5M3 16h18M7 19v-3M17 19v-3"/><circle cx="7.5" cy="13" r=".8"/><circle cx="16.5" cy="13" r=".8"/>',
+    leaf: '<path d="M5 19c0-9 5-14 15-14 0 10-5 15-14 15M5 19l7-7"/>',
+    drop: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/>',
+    wifi: '<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r=".9"/>',
+    plug: '<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0ZM12 17v4"/>',
+    github: '<path d="M9 19c-4 1.5-4-2-6-2.5M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12 12 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/>',
     edit: '<path d="M4 20h4L19 9a2.83 2.83 0 0 0-4-4L4 16Z"/><path d="m13.5 6.5 4 4"/>',
     trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
   };
@@ -520,7 +812,108 @@ svg{display:block}
   });
 
   // ---------- API ----------
+  // ---------- mascot ----------
+  const Mascot = (() => {
+    const el = document.getElementById("mascot");
+    const eyes = el.querySelector(".m-eyes");
+    let base = "", timer = 0, taps = [], lastLook = 0;
+    const set = m => { if (m) el.dataset.mood = m; else delete el.dataset.mood; };
+    function mood(m, ms) {
+      clearTimeout(timer); set(m);
+      if (ms) timer = setTimeout(() => set(base), ms);
+    }
+    function setBase(m) {
+      if (m === base) return;
+      const showingBase = (el.dataset.mood || "") === base;
+      base = m; if (showingBase) set(base);
+    }
+    function blink() {
+      const wait = 2500 + Math.random() * 3500;
+      setTimeout(() => {
+        if (!document.hidden && !el.dataset.mood) {
+          el.classList.add("blink");
+          setTimeout(() => el.classList.remove("blink"), 130);
+          if (Math.random() < .2) setTimeout(() => { el.classList.add("blink"); setTimeout(() => el.classList.remove("blink"), 120); }, 260);
+        }
+        blink();
+      }, wait);
+    }
+    function look(x, y) {
+      const len = Math.hypot(x, y) || 1, k = Math.min(1, len / 160);
+      eyes.style.transform = `translate(${(x / len * 3 * k).toFixed(2)}px, ${(y / len * 2.2 * k).toFixed(2)}px)`;
+    }
+    function lookAt(cx, cy) {
+      const r = el.getBoundingClientRect();
+      lastLook = Date.now();
+      look(cx - (r.left + r.width / 2), cy - (r.top + r.height / 2));
+    }
+    function wander() {
+      setTimeout(() => {
+        if (Date.now() - lastLook > 3000) {
+          const r = Math.random();
+          r < .5 ? look(0, 0) : look((Math.random() - .5) * 300, (Math.random() - .3) * 160);
+        }
+        wander();
+      }, 2200 + Math.random() * 2600);
+    }
+    el.addEventListener("click", e => {
+      if (e.target.closest(".m-edit")) { openMascotEditor(); return; }
+      const now = Date.now();
+      taps = taps.filter(t0 => now - t0 < 1500).concat(now);
+      el.classList.remove("bounce"); void el.offsetWidth; el.classList.add("bounce");
+      mood(taps.length >= 5 ? "wow" : "happy", 1400);
+      if (taps.length >= 5) taps = [];
+      try { tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred("soft"); } catch (e) {}
+    });
+    window.addEventListener("pointermove", e => lookAt(e.clientX, e.clientY), {passive: true});
+    window.addEventListener("pointerdown", e => lookAt(e.clientX, e.clientY), {passive: true});
+    window.addEventListener("deviceorientation", e => {
+      if (e.gamma == null || e.beta == null) return;
+      lastLook = Date.now(); look(e.gamma * 6, (e.beta - 45) * 4);
+    }, {passive: true});
+    blink(); wander();
+    return {mood, setBase};
+  })();
+  const MASCOT_COLORS = {lilac: "#e8e0ff", mint: "#b8f0d8", peach: "#ffd6bd", sky: "#bfe3ff", sun: "#fff0a8", rose: "#ffc9dc"};
+  function openMascotEditor() {
+    const look = (state && state.mascot) || {};
+    let color = look.color || "lilac";
+    const swatches = () => Object.entries(MASCOT_COLORS).map(([id, hex]) =>
+      `<button type="button" class="swatch ${id === color ? "on" : ""}" style="background:${hex}" aria-label="${id}"
+        data-act="${register(() => { color = id; $("mascot").dataset.color = id;
+          document.querySelectorAll(".swatch").forEach(b => b.classList.toggle("on", b.getAttribute("aria-label") === id)); })}"></button>`).join("");
+    const save = register(() => {
+      const name = $("mascot-name").value.trim();
+      closeSheet();
+      setPrefs({mascot: {color: color === "lilac" ? "" : color, name}});
+    });
+    openSheet(t("mascot_title"), `<div class="form">
+      <label for="mascot-name">${esc(t("mascot_name"))}</label>
+      <input id="mascot-name" maxlength="20" value="${esc(look.name || "")}" placeholder="${esc(t("mascot_name_ph"))}">
+      <label>${esc(t("mascot_color"))}</label><div class="swatches">${swatches()}</div>
+      <button class="btn" data-act="${save}">${esc(t("save"))}</button></div>`);
+  }
+  window.openMascotEditor = () => openMascotEditor();
+  function inQuietHours(start, end) {
+    if (!start || !end) return false;
+    const m = s => { const [h, mm] = s.split(":").map(Number); return h * 60 + mm; };
+    const d = new Date(), now = d.getHours() * 60 + d.getMinutes(), a = m(start), b = m(end);
+    return a <= b ? now >= a && now < b : now >= a || now < b;
+  }
+
   async function api(action, extra) {
+    const busy = !["state", "connections", "shared", "preview_connection"].includes(action);
+    if (busy) Mascot.mood("think");
+    try {
+      const data = await rawApi(action, extra);
+      if (busy) Mascot.mood("happy", 1400);
+      return data;
+    } catch (err) {
+      if (busy) Mascot.mood("sad", 1800);
+      throw err;
+    }
+  }
+  async function rawApi(action, extra) {
     if (preview) return demoApi(action, extra);
     const res = await fetch(API, {
       method: "POST", headers: {"Content-Type": "application/json"},
@@ -554,6 +947,11 @@ svg{display:block}
     shared: {max_voice_seconds: 120, keep_audio: false, allow_cloud_for_mail: false},
     account: {id: 0, name: "", username: null},
     reminders: [{when: "20.11 18:30", text: "call the plumber"}],
+    plugins: [{repo: "ha-workshop/hk-car", id: "car", name: "Машина", description: "Заряд и запас хода в сводке",
+               icon: "car", color: "#30d158", domain: "tesla_custom", hacs: "alandtse/tesla", kind: "briefing", entities: 3, ready: true}],
+    calendar_alerts: {event_reminder: 15, birthdays: ""}, is_admin: true, personal_mail: null, personal_calendars: [], time_zone: "Europe/Chisinau", mascot: {color: "", name: ""},
+    custom_skills: [{id: "d1", name: "Шутка дня", prompt: "Расскажи одну добрую шутку.", time: "09:00", enabled: true,
+                     last_run: new Date(Date.now() - 86400000).toISOString()}],
   };
   const nameOf = (list, id) => (list.find(x => x.id === id) || {}).name || id;
   function demoApi(action, extra) {
@@ -564,6 +962,37 @@ svg{display:block}
                      : {id: "conversation.home_assistant", name: "Home Assistant", overridden: false, pipeline_name: "Home Assistant"};
     }
     if (action === "cancel_reminders") DEMO.reminders = [];
+    if (action === "run_skill") return Promise.resolve({ok: true});
+    if (action === "shared") return Promise.resolve({ok: true, shared: {
+      weather: {multiple: false, selected: ["weather.home"], choices: [{id: "weather.home", name: "Forecast Home"}, {id: "weather.dacha", name: "Дача"}]},
+      calendars: {multiple: true, selected: ["calendar.family"], choices: [{id: "calendar.family", name: "Family"}, {id: "calendar.work", name: "Work"}, {id: "calendar.birthdays", name: "Birthdays"}]},
+      mail: {multiple: true, selected: [], choices: [{id: "sensor.inbox", name: "Inbox"}]},
+      todo: {multiple: false, selected: ["todo.shopping_list"], choices: [{id: "todo.shopping_list", name: "Shopping List"}]},
+    }});
+    if (action === "set_shared") return Promise.resolve({ok: true, reloading: true});
+    if (action === "set_mail") {
+      const m = extra.mail;
+      if (m.password === "wrong") return Promise.reject(new Error("mail_auth"));
+      if (!m.password && !DEMO.personal_mail) return Promise.reject(new Error("mail_need_password"));
+      DEMO.personal_mail = {host: m.host, port: m.port, username: m.username, folder: m.folder};
+      return Promise.resolve({ok: true, mail: {...DEMO.personal_mail, unread: 3}, state: JSON.parse(JSON.stringify(DEMO))});
+    }
+    if (action === "remove_mail") DEMO.personal_mail = null;
+    if (action === "add_calendar") {
+      if (!/^(https|webcal):\/\//.test(extra.url)) return Promise.reject(new Error("cal_bad_url"));
+      if (extra.url.includes("404")) return Promise.reject(new Error("cal_not_found"));
+      const item = {id: Math.random().toString(16).slice(2, 10), name: extra.name, host: extra.url.split("/")[2]};
+      DEMO.personal_calendars = DEMO.personal_calendars.concat([item]);
+      return Promise.resolve({ok: true, calendar: {...item, today: 2}, state: JSON.parse(JSON.stringify(DEMO))});
+    }
+    if (action === "remove_calendar") DEMO.personal_calendars = DEMO.personal_calendars.filter(c => c.id !== extra.id);
+    const demoPlugin = {repo: "ha-workshop/hk-nordpool", id: "nordpool", name: "Цена электричества", description: "Почасовые цены Nord Pool в утренней сводке",
+                        icon: "bolt", color: "#ff9f0a", domain: "nordpool", hacs: "custom-components/nordpool", kind: "briefing", entities: 0, ready: false};
+    if (action === "connections") return Promise.resolve({ok: true, connections: DEMO.plugins});
+    if (action === "preview_connection") return extra.repo === "bad/repo" ? Promise.reject(new Error("bad_plugin"))
+                                                 : Promise.resolve({ok: true, plugin: {...demoPlugin, repo: extra.repo}});
+    if (action === "add_connection") { DEMO.plugins = DEMO.plugins.concat([{...demoPlugin, repo: extra.repo}]); return Promise.resolve({ok: true, reloading: true}); }
+    if (action === "remove_connection") { DEMO.plugins = DEMO.plugins.filter(p => p.repo !== extra.repo); return Promise.resolve({ok: true, reloading: true}); }
     if (action === "set_prefs") {
       const p = extra.prefs, b = DEMO.brief, src = DEMO.sources, ch = DEMO.choices;
       if (p.reset) { b.has_personal_briefings = src.personal = false; p.briefings = []; }
@@ -573,6 +1002,13 @@ svg{display:block}
       if ("calendars" in p) { src.calendar_ids = p.calendars; src.calendars = p.calendars.map(id => nameOf(ch.calendars, id)); src.personal = true; }
       if ("mail" in p) { src.mail_ids = p.mail; src.mail = p.mail.length > 0; src.personal = true; }
       if ("home" in p) { src.home = p.home; src.personal = true; }
+      if ("event_reminder" in p) DEMO.calendar_alerts.event_reminder = p.event_reminder;
+      if ("birthdays" in p) DEMO.calendar_alerts.birthdays = p.birthdays;
+      if ("mascot" in p) DEMO.mascot = {...p.mascot};
+      if ("skills" in p) {
+        const old = Object.fromEntries((DEMO.custom_skills || []).map(x => [x.id, x]));
+        DEMO.custom_skills = p.skills.map(x => ({last_run: "", ...x, id: x.id || Math.random().toString(16).slice(2, 10), last_run: (old[x.id] || {}).last_run || ""}));
+      }
       DEMO.personal = b.personal_brief || b.personal_quiet || src.personal;
     }
     return Promise.resolve({ok: true, state: JSON.parse(JSON.stringify(DEMO))});
@@ -598,8 +1034,11 @@ svg{display:block}
     document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
     $("preview-banner").hidden = !preview;
 
+    Mascot.setBase(inQuietHours(state.brief.quiet_start, state.brief.quiet_end) ? "sleepy" : "");
     $("hello").textContent = state.first_name ? t("hello", {name: state.first_name}) : t("hello_anon");
-    $("hello-sub").textContent = t("hello_sub");
+    const look = state.mascot || {};
+    $("hello-sub").textContent = look.name ? t("hello_sub_named", {name: look.name}) : t("hello_sub");
+    if (look.color) $("mascot").dataset.color = look.color; else delete $("mascot").dataset.color;
     $("agent-pill-name").textContent = state.agent.name || t("agent_default");
 
     const voiceOn = state.reply_mode !== "text";
@@ -631,6 +1070,8 @@ svg{display:block}
       : `<div class="empty">${esc(t("no_reminders"))}</div>`;
 
     // Skills
+    renderMySkills();
+    renderReadySkills();
     const src = state.sources;
     const skills = [
       ["s_brief", "s_brief_ph", "cat_prod", src.weather || src.calendars.length || src.home, () => runCommand("brief")],
@@ -650,18 +1091,7 @@ svg{display:block}
     }).join("");
 
     // House
-    const val = v => v ? `<span class="chip ok">${esc(t("configured"))}</span>` : `<span class="chip off">${esc(t("not_set"))}</span>`;
-    $("sources").innerHTML =
-      row({icon: ICON.line(P.sun), title: esc(t("weather")), sub: esc(src.weather || ""), right: val(src.weather)}) +
-      row({icon: ICON.line(P.cal), title: esc(t("calendars")), sub: esc(src.calendars.join(", ")),
-           right: src.calendars.length ? `<span class="chip ok">${esc(t("cal_n", {n: src.calendars.length}))}</span>` : val(false)}) +
-      row({icon: ICON.line(P.cart), title: esc(t("todo")), sub: esc(src.todo || ""), right: val(src.todo)}) +
-      row({icon: ICON.line(P.mail), title: esc(t("mail")), right: val(src.mail)}) +
-      row({icon: ICON.line(P.house), title: esc(t("home_state")), right: val(src.home)});
-    $("schedule").innerHTML =
-      row({icon: ICON.line(P.clock), title: esc(t("brief_daily")), value: esc(hasBriefings ? briefSummary() : t("off"))}) +
-      row({icon: ICON.line(P.moon), title: esc(t("quiet")), sub: esc(t("quiet_sub")),
-           value: esc(state.brief.quiet_start && state.brief.quiet_end ? state.brief.quiet_start + "–" + state.brief.quiet_end : t("off"))});
+    renderConnections();
 
     // Settings
     const acc = state.account || {};
@@ -683,7 +1113,7 @@ svg{display:block}
         const sub = p.name ? p.time + " · " + kindLabel : p.time;
         const idx = plans.indexOf(p);
         const toggle = register(e => { e.stopPropagation(); toggleBriefing(idx); });
-        return row({icon: ICON.line(p.kind === "evening" ? P.moon : P.sunrise), title: esc(title), sub: esc(sub),
+        return row({icon: ICON.line(p.kind === "evening" ? P.moon : p.kind === "mail" ? P.mail : P.sunrise), title: esc(title), sub: esc(sub),
           right: `<span class="switch-hit" data-act="${toggle}">${sw(p.enabled)}</span>`,
           onClick: () => editBriefing(p)});
       }).join("");
@@ -693,17 +1123,32 @@ svg{display:block}
     briefHtml += row({icon: ICON.line(P.plus), title: esc(t("add_briefing")), cls: "link", chev: true,
       onClick: openAddBriefing});
 
-    briefHtml += row({icon: ICON.line(P.sun), title: esc(t("weather")) + mine(src.personal), value: esc(src.weather || t("none")), chev: true,
-      onClick: openWeather});
-    briefHtml += row({icon: ICON.line(P.cal), title: esc(t("calendars")), value: esc(ids.length ? t("cal_n", {n: ids.length}) : t("none")), chev: true,
-      onClick: () => openMulti("calendars", t("calendars"), state.choices.calendars, ids)});
-    briefHtml += row({icon: ICON.line(P.mail), title: esc(t("mail")), value: esc(mailIds.length ? t("cal_n", {n: mailIds.length}) : t("none")), chev: true,
-      onClick: () => openMulti("mail", t("mail"), state.choices.mail, mailIds)});
-    briefHtml += row({icon: ICON.line(P.house), title: esc(t("home_state")), right: sw(src.home),
-      onClick: () => setPrefs({home: !src.home}, true)});
+    briefHtml += row({icon: ICON.line(P.house), title: esc(t("brief_sources")), sub: esc(t("brief_sources_sub")), chev: true,
+      onClick: () => document.querySelector('.tab[data-tab="house"]').click()});
     $("settings-brief").innerHTML = briefHtml;
 
     const quietOn = !!(state.brief.quiet_start && state.brief.quiet_end);
+    const alerts = state.calendar_alerts || {event_reminder: 0, birthdays: ""};
+    const noCal = !(src.calendar_ids || []).length && !(state.personal_calendars || []).length;
+    const needCal = fn => () => noCal ? toast(t("no_calendars")) : fn();
+    $("settings-calendar").innerHTML =
+      row({icon: ICON.line(P.bell), title: esc(t("event_reminder")),
+           value: esc(alerts.event_reminder ? t("event_before", {n: alerts.event_reminder}) : t("off")), chev: true,
+           onClick: needCal(() => openSheet(t("event_reminder"), [0, 5, 10, 15, 30, 60].map(n => row({
+             title: esc(n ? t("event_before", {n}) : t("off")),
+             right: n === alerts.event_reminder ? '<span class="check">✓</span>' : "",
+             onClick: () => { closeSheet(); setPrefs({event_reminder: n}); }})).join("")))}) +
+      row({icon: ICON.line(P.cal), title: esc(t("birthdays")),
+           value: esc(alerts.birthdays ? t("birthdays_at", {time: alerts.birthdays}) : t("off")), chev: true,
+           onClick: needCal(() => openSheet(t("birthdays"),
+             `<p class="note" style="margin:0 4px 10px">${esc(t("birthdays_hint"))}</p><div class="card">` +
+             row({title: esc(t("off")), right: !alerts.birthdays ? '<span class="check">✓</span>' : "",
+                  onClick: () => { closeSheet(); setPrefs({birthdays: ""}); }}) +
+             row({title: esc(alerts.birthdays ? t("birthdays_at", {time: alerts.birthdays}) : t("time")), chev: true,
+                  right: alerts.birthdays ? '<span class="check">✓</span>' : "",
+                  onClick: () => { closeSheet(); openTime(t("birthdays"), alerts.birthdays, v => setPrefs({birthdays: v}));
+                                   if (!alerts.birthdays) $("time-input").value = "09:00"; }}) +
+             `</div>`))});
     $("settings-quiet").innerHTML =
       row({icon: ICON.line(P.moon), title: esc(t("quiet_on")) + mine(state.brief.personal_quiet), right: sw(quietOn),
            onClick: () => setPrefs({quiet: quietOn ? [] : ["23:00", "07:00"]}, true)}) +
@@ -715,16 +1160,11 @@ svg{display:block}
         : "");
 
     $("settings-chat").innerHTML =
-      row({icon: ICON.line(P.agent), title: esc(t("agent")), value: esc(state.agent.overridden ? state.agent.name : t("agent_default")), chev: true, onClick: openAgents}) +
       row({icon: ICON.line(P.mode), title: esc(t("reply_mode")), value: esc(modeName(state.reply_mode)), chev: true, onClick: openModes}) +
       row({icon: ICON.line(P.refresh), title: esc(t("new_conv")), chev: true, onClick: newConversation});
-    $("settings-voice").innerHTML =
-      row({icon: ICON.line(P.pipeline), title: esc(t("pipeline")), value: esc(state.pipeline || t("not_set"))}) +
-      row({icon: ICON.line(P.mic), title: esc(t("stt")), value: esc(state.stt ? t("on") : t("off"))}) +
-      row({icon: ICON.line(P.speaker), title: esc(t("tts")), value: esc(state.tts ? t("on") : t("off"))}) +
-      row({icon: ICON.line(P.mic), title: esc(t("max_voice")), value: esc(t("sec", {n: state.shared.max_voice_seconds}))}) +
-      row({icon: ICON.line(P.mail), title: esc(t("cloud_mail")), sub: esc(t("cloud_mail_sub")), value: esc(state.shared.allow_cloud_for_mail ? t("on") : t("off"))});
     $("settings-app").innerHTML =
+      row({icon: ICON.sparkle("var(--accent-2)"), title: esc(t("mascot_row")), value: esc((state.mascot || {}).name || "Hearthkeeper"),
+           chev: true, onClick: openMascotEditor}) +
       row({icon: ICON.line(P.globe), title: esc(t("language")), value: lang === "ru" ? "Русский" : "English"}) +
       row({icon: ICON.line(P.bot), title: esc(t("bot")), value: esc(state.bot_username ? "@" + state.bot_username : "—")}) +
       row({icon: ICON.line(P.help), title: esc(t("help")), chev: true, onClick: () => runCommand("help")}) +
@@ -734,7 +1174,7 @@ svg{display:block}
 
   // ---------- actions ----------
   async function apply(promise) {
-    try { const data = await promise; if (data.state) { state = data.state; render(); } haptic("ok"); return true; }
+    try { const data = await promise; if (data.state) { state = data.state; render(); drawSub(); } haptic("ok"); return true; }
     catch (err) { fail(err); render(); return false; }
   }
   async function runCommand(command, args) {
@@ -757,14 +1197,14 @@ svg{display:block}
     else go();
   }
   function openAddBriefing() {
-    const kinds = ["morning", "evening"];
+    const kinds = ["morning", "evening", "mail"];
     openSheet(t("add_briefing"), kinds.map(k => row({
       title: esc(t("brief_" + k)),
       sub: esc(t("brief_" + k + "_sub")),
       chev: true,
       onClick: async () => {
         closeSheet();
-        const time = k === "evening" ? "20:00" : "08:00";
+        const time = k === "evening" ? "20:00" : k === "mail" ? "09:00" : "08:00";
         const newPlan = {kind: k, time, enabled: true, name: ""};
         const idx = (state.briefings || []).length;
         if (await setPrefs({briefings: (state.briefings || []).concat([newPlan])}, true))
@@ -772,24 +1212,69 @@ svg{display:block}
       },
     })).join(""));
   }
-  function editBriefing(plan) {
-    const idx = (state.briefings || []).findIndex(p => p.id === plan.id);
-    if (idx < 0) return;
+  // ---------- sub pages ----------
+  let sub = null;
+  const nativeBack = () => !!(tg && tg.BackButton && !preview);
+  function openPage(build) {
+    const from = document.querySelector(".page.active");
+    sub = {build, from: from ? from.id : "page-home", y: window.scrollY};
+    document.querySelectorAll(".page").forEach(p => p.classList.toggle("active", p.id === "page-sub"));
+    document.body.classList.add("on-sub");
+    $("sub-back").hidden = nativeBack();
+    if (nativeBack()) { tg.BackButton.onClick(closePage); tg.BackButton.show(); }
+    drawSub(); window.scrollTo(0, 0);
+  }
+  function drawSub() {
+    if (!sub) return;
+    const page = sub.build();
+    if (!page) { closePage(); return; }
+    $("sub-title").textContent = page.title;
+    $("sub-body").innerHTML = page.html;
+  }
+  function closePage() {
+    if (!sub) return;
+    mailEditing = false; calAdding = false;
+    const {from, y} = sub; sub = null;
+    if (nativeBack()) { tg.BackButton.offClick(closePage); tg.BackButton.hide(); }
+    document.body.classList.remove("on-sub");
+    document.querySelectorAll(".page").forEach(p => p.classList.toggle("active", p.id === from));
+    window.scrollTo(0, y);
+  }
+  $("sub-back").addEventListener("click", closePage);
+
+  function editBriefing(plan) { openPage(() => briefingPage(plan.id)); }
+  function briefingPage(planId) {
+    const idx = (state.briefings || []).findIndex(p => p.id === planId);
+    if (idx < 0) return null;
+    const plan = state.briefings[idx];
+    const kindName = t("brief_" + plan.kind), name = plan.name || kindName;
+    const label = key => `<h2 class="sub-label">${esc(t(key))}</h2>`;
     const html =
-      row({icon: ICON.line(P.bell), title: esc(t("brief_on")), right: sw(plan.enabled),
-           onClick: async () => { closeSheet(); await toggleBriefing(idx); }}) +
-      row({icon: ICON.line(P.clock), title: esc(t("time")), value: esc(plan.time), chev: true,
-           onClick: () => { closeSheet(); openTime(t("time"), plan.time, v => updateBriefing(idx, {time: v})); }}) +
-      row({icon: ICON.line(P.edit), title: esc(t("brief_name")), value: esc(plan.name || t("brief_" + plan.kind)), chev: true,
-           onClick: () => { closeSheet(); openText(t("brief_name"), plan.name, v => updateBriefing(idx, {name: v})); }}) +
-      row({icon: ICON.line(P.trash), title: esc(t("delete_briefing")), cls: "danger", onClick: () => {
-        closeSheet();
-        const go = () => deleteBriefing(idx);
-        const q = t("confirm_delete_briefing", {name: plan.name || t("brief_" + plan.kind)});
-        if (tg && tg.showConfirm && !preview) tg.showConfirm(q, ok => ok && go());
-        else go();
-      }});
-    openSheet(t("brief_" + plan.kind), html);
+      `<section class="section" style="margin-top:8px"><div class="card">` +
+        row({title: `<b>${esc(name)}</b>`, sub: esc(plan.enabled ? t("brief_on") : t("off")), right: sw(plan.enabled),
+             onClick: () => toggleBriefing(idx)}) +
+      `</div></section>` +
+      `<section class="section">${label("time")}<div class="card">` +
+        row({title: esc(t("brief_time_label")), right: `<span class="pill-val">${esc(plan.time)}</span>`,
+             onClick: () => openTime(t("time"), plan.time, v => updateBriefing(idx, {time: v}))}) +
+      `</div><p class="note">${esc(t("brief_tz", {tz: state.time_zone || ""}))}</p></section>` +
+      `<section class="section">${label("brief_name")}<div class="card">` +
+        row({title: esc(name), chev: true,
+             onClick: () => openText(t("brief_name"), plan.name, v => updateBriefing(idx, {name: v}))}) +
+      `</div></section>` +
+      `<section class="section">${label("brief_what")}<div class="card">` +
+        row({icon: ICON.line(plan.kind === "evening" ? P.moon : plan.kind === "mail" ? P.mail : P.sunrise),
+             title: esc(kindName), sub: esc(t("brief_" + plan.kind + "_sub"))}) +
+      `</div></section>` +
+      `<section class="section"><div class="card">` +
+        row({icon: ICON.line(P.trash), title: esc(t("delete_briefing")), cls: "danger", onClick: () => {
+          const go = () => deleteBriefing(idx).then(closePage);
+          const q = t("confirm_delete_briefing", {name});
+          if (tg && tg.showConfirm && !preview) tg.showConfirm(q, ok => ok && go());
+          else go();
+        }}) +
+      `</div></section>`;
+    return {title: kindName, html};
   }
   async function toggleBriefing(idx) {
     const plans = (state.briefings || []).slice();
@@ -806,6 +1291,470 @@ svg{display:block}
     plans.splice(idx, 1);
     return setPrefs({briefings: plans});
   }
+  // ---------- connections ----------
+  const HA_LINKS = {
+    weather: "https://my.home-assistant.io/redirect/config_flow_start/?domain=met",
+    calendar: "https://my.home-assistant.io/redirect/integrations/",
+    mail: "https://my.home-assistant.io/redirect/config_flow_start/?domain=imap",
+    todo: "https://my.home-assistant.io/redirect/integrations/",
+    voice: "https://my.home-assistant.io/redirect/voice_assistants/",
+    hearthkeeper: "https://my.home-assistant.io/redirect/integration/?domain=hearthkeeper",
+  };
+  function openLink(url) {
+    try { if (tg && tg.openLink && !preview) { tg.openLink(url); return; } } catch (e) {}
+    window.open(url, "_blank", "noopener");
+  }
+  const SHARED_KEY = {weather: "weather", calendar: "calendars", mail: "mail", todo: "todo"};
+  function connRow({key, color, icon, on, detail, onGear, toggle}) {
+    const name = t("c_" + key);
+    if (state.is_admin && SHARED_KEY[key] && !toggle) {
+      const personal = onGear;
+      onGear = personal
+        ? () => openSheet(name, `<div class="card">` +
+            row({title: esc(t("my_pick")), chev: true, onClick: () => { closeSheet(); personal(); }}) +
+            row({title: esc(t("family_pick")) + `<span class="badge">${esc(t("admin_badge"))}</span>`, chev: true,
+                 onClick: () => { closeSheet(); openSharedPicker(SHARED_KEY[key], name); }}) + `</div>`)
+        : () => openSharedPicker(SHARED_KEY[key], name);
+    }
+    const tile = `<span class="ctile ${on || toggle ? "" : "off"}" style="background:${color}">${ICON.line(icon)}</span>`;
+    const sub = toggle ? t(on ? "on" : "off")
+      : on ? t("connected") + (detail ? " · " + detail : "") : t("not_connected");
+    let right, onClick;
+    if (toggle) { right = sw(on); onClick = toggle; }
+    else if (on || onGear) { right = `<span class="gear">${ICON.line(P.gear)}</span>`; onClick = onGear || (() => openShared(name)); }
+    else { right = `<span class="gear">${ICON.line(P.plus)}</span>`; onClick = () => openHowTo(key, name); }
+    return `<button class="row" data-act="${register(onClick)}">
+      <span class="row-icon" style="width:34px;height:34px">${tile}</span>
+      <span class="row-body"><span class="row-title">${esc(name)}</span>
+        <span class="row-sub ${on ? "ok" : "muted"}" style="display:block">${esc(sub)}</span></span>${right}</button>`;
+  }
+  function renderConnections() {
+    const src = state.sources, ch = state.choices || {};
+    const calIds = src.calendar_ids || [], mailIds = src.mail_ids || [];
+    const voiceOn = !!(state.stt || state.tts);
+    $("sources").innerHTML = [
+      connRow({key: "agent", color: "linear-gradient(135deg,#8b5cf6,#c026d3)", icon: P.bot, on: true,
+               detail: state.agent.name, onGear: openAgents}),
+      connRow({key: "weather", color: "#0a84ff", icon: P.sun, on: !!src.weather, detail: src.weather,
+               onGear: (ch.weather || []).length ? openWeather : null}),
+      connRow({key: "calendar", color: "#ff453a", icon: P.cal, on: calIds.length + (state.personal_calendars || []).length > 0,
+               detail: t("cal_n", {n: calIds.length + (state.personal_calendars || []).length}),
+               onGear: () => openPage(calendarsPage)}),
+      connRow({key: "mail", color: "#30b0c7", icon: P.mail, on: !!state.personal_mail || mailIds.length > 0,
+               detail: state.personal_mail ? state.personal_mail.username : t("cal_n", {n: mailIds.length}),
+               onGear: () => openPage(mailPage)}),
+      connRow({key: "todo", color: "#34c759", icon: P.cart, on: !!src.todo, detail: src.todo}),
+      connRow({key: "voice", color: "#ff9f0a", icon: P.mic, on: voiceOn,
+               detail: state.pipeline || "", onGear: () => openPage(voicePage)}),
+      connRow({key: "home", color: "#5e5ce6", icon: P.house, on: !!src.home,
+               toggle: () => setPrefs({home: !src.home}, true)}),
+    ].join("") + renderPlugins();
+    if (plugins === null && !pluginsLoading) loadPlugins();
+  }
+  async function openSharedPicker(key, title) {
+    let data;
+    try { data = (await rawApi("shared")).shared[key]; }
+    catch (err) { toast(t(err.message === "forbidden" ? "forbidden" : "error")); return; }
+    if (!data.choices.length) { openSheet(title, `<div class="empty">${esc(t("none_found"))}</div>`); return; }
+    const picked = new Set(data.selected);
+    const draw = () => {
+      const items = (data.multiple ? [] : [{id: "", name: t("none")}]).concat(data.choices);
+      openSheet(t("family_pick") + " · " + title, `<div class="card">` + items.map(c => row({
+        title: esc(c.name), right: (c.id ? picked.has(c.id) : !picked.size) ? '<span class="check">✓</span>' : "",
+        onClick: () => {
+          if (data.multiple) { picked.has(c.id) ? picked.delete(c.id) : picked.add(c.id); }
+          else { picked.clear(); if (c.id) picked.add(c.id); }
+          draw();
+        }})).join("") + `</div><div class="form"><button class="btn" data-act="${register(saveShared)}">${esc(t("save"))}</button></div>`);
+    };
+    async function saveShared() {
+      closeSheet();
+      const value = data.multiple ? [...picked] : ([...picked][0] || null);
+      try { await api("set_shared", {key, value}); toast(t("admin_saved")); }
+      catch (err) { fail(err); return; }
+      afterReload();
+    }
+    draw();
+  }
+  // ---------- voice (shared, read-only here) ----------
+  function voicePage() {
+    const sh = state.shared || {};
+    const html = `<section class="section" style="margin-top:8px"><div class="card">` +
+      row({icon: ICON.line(P.pipeline), title: esc(t("pipeline")), value: esc(state.pipeline || t("not_set"))}) +
+      row({icon: ICON.line(P.mic), title: esc(t("stt")), value: esc(state.stt ? t("on") : t("off"))}) +
+      row({icon: ICON.line(P.speaker), title: esc(t("tts")), value: esc(state.tts ? t("on") : t("off"))}) +
+      row({icon: ICON.line(P.clock), title: esc(t("max_voice")), value: esc(t("sec", {n: sh.max_voice_seconds}))}) +
+      `</div><p class="note">${esc(t("shared_note"))}</p></section>`;
+    return {title: t("c_voice"), html};
+  }
+
+  // ---------- personal calendars ----------
+  let calAdding = false;
+  function calendarsPage() {
+    const label = key => `<h2 class="sub-label">${esc(t(key))}</h2>`;
+    const ids = state.sources.calendar_ids || [], mine = state.personal_calendars || [];
+    let html = `<section class="section" style="margin-top:8px">${label("cal_ha")}<div class="card">` +
+      row({icon: ICON.line(P.house), title: esc(t("cal_ha_pick")), value: esc(ids.length ? t("cal_n", {n: ids.length}) : t("none")), chev: true,
+           onClick: () => openMulti("calendars", t("calendars"), state.choices.calendars, ids)}) + `</div></section>`;
+    html += `<section class="section">${label("cal_links")}<div class="card">` +
+      mine.map(c => row({icon: `<span class="ctile" style="background:#ff453a;width:26px;height:26px;border-radius:7px">${ICON.line(P.cal)}</span>`,
+        title: esc(c.name), sub: esc(c.host),
+        right: `<span class="add" role="button" aria-label="delete" data-act="${register(e => { e.stopPropagation(); removeCal(c); })}">${ICON.line(P.trash)}</span>`})).join("") +
+      (calAdding ? "" : row({icon: ICON.line(P.plus), title: esc(t("cal_add")), cls: "link", chev: true,
+                             onClick: () => { if (mine.length >= 5) { toast(t("cal_too_many")); return; } calAdding = true; drawSub(); }})) +
+      `</div><p class="note">${esc(t("cal_links_desc"))}</p></section>`;
+    if (calAdding) {
+      const save = register(async () => {
+        const name = $("cal-name").value.trim(), url = $("cal-url").value.trim();
+        if (!name) { toast(t("cal_bad_name")); return; }
+        toast(t("cal_checking"));
+        try {
+          const data = await api("add_calendar", {name, url});
+          state = data.state; calAdding = false; render(); drawSub();
+          toast(t("cal_added", {n: data.calendar.today}));
+        } catch (err) {
+          const code = (err.message || "").replace(/^cal_/, "");
+          toast(t(I18N.ru["cal_" + code] ? "cal_" + code : "error"));
+        }
+      });
+      html += `<section class="section"><div class="form">
+        <label for="cal-name">${esc(t("cal_name"))}</label>
+        <input id="cal-name" maxlength="40" placeholder="${esc(t("cal_name_ph"))}">
+        <label for="cal-url">${esc(t("cal_url"))}</label>
+        <input id="cal-url" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t("cal_url_ph"))}">
+        <details><summary class="link-btn" style="display:inline-block">${esc(t("cal_where"))}</summary>
+          <ul class="steps" style="margin-top:6px">${["google", "yandex", "icloud", "outlook"].map(k => `<li>${esc(t("cal_help_" + k))}</li>`).join("")}</ul></details>
+        <button class="btn" data-act="${save}">${esc(t("cal_save"))}</button></div>
+        <p class="note">${esc(t("cal_note"))}</p></section>`;
+    }
+    return {title: t("cal_title"), html};
+  }
+  function removeCal(c) {
+    const go = async () => { if (await apply(api("remove_calendar", {id: c.id}))) toast(t("cal_removed")); };
+    const q = t("cal_remove_q", {name: c.name});
+    if (tg && tg.showConfirm && !preview) tg.showConfirm(q, ok => ok && go()); else go();
+  }
+
+  // ---------- personal mailbox ----------
+  const IMAP_HOSTS = [
+    [/^(gmail|googlemail)\.com$/, "imap.gmail.com"], [/^(yandex\.(ru|com|by|kz)|ya\.ru)$/, "imap.yandex.ru"],
+    [/^(mail|bk|list|inbox|internet)\.ru$/, "imap.mail.ru"], [/^(outlook|hotmail|live|msn)\.[a-z.]+$/, "outlook.office365.com"],
+    [/^(icloud|me|mac)\.com$/, "imap.mail.me.com"],
+  ];
+  const guessHost = email => {
+    const domain = (email.split("@")[1] || "").toLowerCase();
+    if (!domain) return "";
+    const hit = IMAP_HOSTS.find(([re]) => re.test(domain));
+    return hit ? hit[1] : "imap." + domain;
+  };
+  let mailEditing = false;
+  function mailPage() {
+    const box = state.personal_mail, label = key => `<h2 class="sub-label">${esc(t(key))}</h2>`;
+    let html = "";
+    if (box && !mailEditing) {
+      html += `<section class="section" style="margin-top:8px"><div class="card">` +
+        `<div class="row"><span class="row-icon" style="width:34px;height:34px"><span class="ctile" style="background:#30b0c7">${ICON.line(P.mail)}</span></span>
+         <span class="row-body"><span class="row-title"><b>${esc(box.username)}</b></span>
+         <span class="row-sub ok" style="display:block">${esc(t("connected"))} · ${esc(box.host)}</span></span></div>` +
+        row({icon: ICON.line(P.edit), title: esc(t("mail_edit")), chev: true, onClick: () => { mailEditing = true; drawSub(); }}) +
+        row({icon: ICON.line(P.trash), title: esc(t("mail_disconnect")), cls: "danger", onClick: () => {
+          const go = async () => { if (await apply(api("remove_mail"))) toast(t("mail_off_done")); };
+          const q = t("mail_confirm_off", {name: box.username});
+          if (tg && tg.showConfirm && !preview) tg.showConfirm(q, ok => ok && go()); else go(); }}) +
+        `</div></section>`;
+    } else {
+      const v = box || {host: "", port: 993, username: "", folder: "INBOX"};
+      const save = register(async () => {
+        const username = $("mail-user").value.trim();
+        const mail = {username, password: $("mail-pass").value, host: ($("mail-host").value.trim() || guessHost(username)),
+                      port: parseInt($("mail-port").value, 10) || 993, folder: $("mail-folder").value.trim() || "INBOX"};
+        if (!username) { toast(t("need_fields")); return; }
+        toast(t("mail_checking"));
+        try {
+          const data = await api("set_mail", {mail});
+          state = data.state; mailEditing = false; render(); drawSub();
+          toast(t("mail_connected", {n: data.mail.unread}));
+        } catch (err) {
+          const key = {mail_auth: "mail_auth", mail_connect: "mail_connect", mail_folder: "mail_folder_err",
+                       mail_bad_host: "mail_bad_host", mail_need_password: "mail_need_password"}[err.message];
+          toast(t(key || "error"));
+        }
+      });
+      const guess = register(() => { const h = $("mail-host"); if (!h.dataset.touched) h.value = guessHost($("mail-user").value); });
+      html += `<section class="section" style="margin-top:8px"><div class="form">
+        <label for="mail-user">${esc(t("mail_email"))}</label>
+        <input id="mail-user" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" value="${esc(v.username)}"
+          placeholder="name@gmail.com" oninput="this.dispatchEvent(new CustomEvent('guess', {bubbles: true}))" data-guess="${guess}">
+        <label for="mail-pass">${esc(t("mail_password"))}</label>
+        <input id="mail-pass" type="password" autocomplete="new-password" placeholder="${esc(box ? t("mail_password_saved") : "")}">
+        <details><summary class="link-btn" style="display:inline-block">${esc(t("mail_more"))}</summary>
+          <div class="form" style="padding:8px 0 0">
+          <label for="mail-host">${esc(t("mail_server"))}</label>
+          <input id="mail-host" autocapitalize="off" spellcheck="false" value="${esc(v.host)}" placeholder="imap.example.com" oninput="this.dataset.touched=1">
+          <div class="time-row"><div style="flex:1"><label for="mail-port">${esc(t("mail_port"))}</label>
+            <input id="mail-port" inputmode="numeric" value="${esc(String(v.port))}"></div>
+          <div style="flex:2"><label for="mail-folder">${esc(t("mail_folder"))}</label>
+            <input id="mail-folder" autocapitalize="off" value="${esc(v.folder)}"></div></div></div></details>
+        <button class="btn" data-act="${save}">${esc(t("mail_connect_btn"))}</button></div>
+        <p class="note">${esc(t("mail_note"))}</p></section>`;
+    }
+    html += `<section class="section"><div class="card">` +
+      row({icon: ICON.sparkle("var(--accent-2)"), title: esc(t("cloud_mail")), sub: esc(t("cloud_mail_sub")),
+           value: esc((state.shared || {}).allow_cloud_for_mail ? t("on") : t("off"))}) + `</div></section>`;
+    if ((state.choices.mail || []).length) {
+      html += `<section class="section">${label("mail_family")}<div class="card">` +
+        row({icon: ICON.line(P.house), title: esc(t("mail_family")), sub: esc(t("mail_family_sub")),
+             value: esc(t("cal_n", {n: (state.sources.mail_ids || []).length})), chev: true,
+             onClick: () => openMulti("mail", t("mail"), state.choices.mail, state.sources.mail_ids || [])}) + `</div></section>`;
+    }
+    return {title: t("mail_title"), html};
+  }
+  document.addEventListener("guess", e => { const id = e.target.dataset.guess; if (id && actions[id]) actions[id](); });
+
+  // Connection plugins, added from GitHub the way HACS adds repositories.
+  let plugins = null, pluginsLoading = false;
+  async function loadPlugins() {
+    pluginsLoading = true;
+    try { plugins = (await rawApi("connections")).connections || []; } catch (e) { plugins = []; }
+    pluginsLoading = false;
+    if (state) renderConnections();
+  }
+  function pluginTile(p) {
+    return `<span class="ctile ${p.ready ? "" : "off"}" style="background:${/^#[0-9a-f]{6}$/i.test(p.color) ? p.color : "#8e8e93"}">${ICON.line(P[p.icon] || P.plug)}</span>`;
+  }
+  function renderPlugins() {
+    const list = plugins || [];
+    let html = list.map(p => `<button class="row" data-act="${register(() => openPage(() => pluginPage(p.repo)))}">
+      <span class="row-icon" style="width:34px;height:34px">${pluginTile(p)}</span>
+      <span class="row-body"><span class="row-title">${esc(p.name)}<span class="chip">${esc(t("plugin_badge"))}</span></span>
+        <span class="row-sub ${p.ready ? "ok" : "muted"}" style="display:block">${esc(p.ready ? t("plugin_ready", {n: p.entities}) : t("plugin_missing", {domain: p.domain}))}</span></span>
+      ${ICON.chev}</button>`).join("");
+    if (state.is_admin) html += row({icon: ICON.line(P.plus), title: esc(t("add_plugin")), cls: "link", chev: true,
+                                     onClick: () => openPage(addPluginPage)});
+    return html;
+  }
+  const hacsLink = repo => { const [owner, name] = repo.split("/");
+    return `https://my.home-assistant.io/redirect/hacs_repository/?owner=${encodeURIComponent(owner)}&repository=${encodeURIComponent(name)}&category=integration`; };
+  const githubLink = repo => "https://github.com/" + repo.split("@")[0].split("/").map(encodeURIComponent).join("/");
+  function pluginCard(p) {
+    const label = key => `<h2 class="sub-label">${esc(t(key))}</h2>`;
+    return `<section class="section" style="margin-top:8px"><div class="card">
+        <div class="row"><span class="row-icon" style="width:34px;height:34px">${pluginTile(p)}</span>
+        <span class="row-body"><span class="row-title"><b>${esc(p.name)}</b></span>
+        <span class="row-sub" style="display:block">${esc(p.repo)}</span></span></div></div>
+        ${p.description ? `<p class="note">${esc(p.description)}</p>` : ""}</section>
+      <section class="section">${label("plugin_gives")}<div class="card">${row({title: esc(t("plugin_kind_" + p.kind))})}</div></section>
+      <section class="section">${label("plugin_status")}<div class="card">${row({
+        title: esc(p.ready ? t("plugin_ready", {n: p.entities}) : t("plugin_missing", {domain: p.domain})),
+        right: p.ready ? '<span class="chip ok">✓</span>' : ""})}</div></section>`;
+  }
+  function pluginPage(repo) {
+    const p = (plugins || []).find(x => x.repo === repo);
+    if (!p) return null;
+    const actions =
+      (!p.ready && p.hacs ? row({icon: ICON.line(P.plus), title: esc(t("plugin_open_hacs")), cls: "link", chev: true, onClick: () => openLink(hacsLink(p.hacs))}) : "") +
+      (!p.ready ? row({icon: ICON.line(P.house), title: esc(t("plugin_open_ha")), chev: true,
+                       onClick: () => openLink("https://my.home-assistant.io/redirect/config_flow_start/?domain=" + encodeURIComponent(p.domain))}) : "") +
+      row({icon: ICON.line(P.github), title: esc(t("plugin_github")), chev: true, onClick: () => openLink(githubLink(p.repo))}) +
+      (state.is_admin ? row({icon: ICON.line(P.trash), title: esc(t("plugin_remove")), cls: "danger", onClick: () => {
+        const go = async () => { try { await api("remove_connection", {repo: p.repo}); toast(t("plugin_removed")); closePage(); afterReload(); } catch (e) { fail(e); } };
+        const q = t("confirm_remove_plugin", {name: p.name});
+        if (tg && tg.showConfirm && !preview) tg.showConfirm(q, ok => ok && go()); else go(); }}) : "");
+    return {title: p.name, html: pluginCard(p) + `<section class="section"><div class="card">${actions}</div>
+      <p class="note">${esc(t("plugin_note"))}</p></section>`};
+  }
+  let draftPlugin = null;
+  function addPluginPage() {
+    const check = register(async () => {
+      const repo = $("plugin-repo").value.trim();
+      if (!/^[\w.-]+\/[\w.-]+(@[\w./-]+)?$/.test(repo)) { toast(t("plugin_bad_repo")); return; }
+      try { draftPlugin = (await rawApi("preview_connection", {repo})).plugin; drawSub(); }
+      catch (e) { draftPlugin = null; toast(t(e.message === "bad_plugin" ? "plugin_bad" : e.message === "bad_repo" ? "plugin_bad_repo" : "error")); drawSub(); }
+    });
+    const add = register(async () => {
+      try { await api("add_connection", {repo: draftPlugin.repo}); toast(t("plugin_added")); draftPlugin = null; closePage(); afterReload(); }
+      catch (e) { fail(e); }
+    });
+    const value = draftPlugin ? draftPlugin.repo : (document.getElementById("plugin-repo") || {}).value || "";
+    return {title: t("add_plugin"), html: `<section class="section" style="margin-top:8px"><div class="form">
+        <label for="plugin-repo">${esc(t("plugin_repo"))}</label>
+        <div class="time-row"><input id="plugin-repo" value="${esc(value)}" placeholder="${esc(t("plugin_repo_ph"))}" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button type="button" class="link-btn" data-act="${check}">${esc(t("plugin_check"))}</button></div></div>
+        <p class="note">${esc(t("plugin_note"))}</p></section>` +
+      (draftPlugin ? pluginCard(draftPlugin) + `<section class="section"><div class="form"><button class="btn" data-act="${add}">${esc(t("plugin_add"))}</button></div></section>` : "")};
+  }
+  async function afterReload() {
+    // The integration reloads; poll until it answers with the new state.
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 1500));
+      try { const d = await rawApi("state"); state = d.state; plugins = null; render(); return; } catch (e) {}
+    }
+  }
+  function openShared(name) {
+    openSheet(name, `<div class="form"><p class="note" style="margin:0 4px">${esc(t("shared_note"))}</p>
+      <button class="btn" data-act="${register(() => openLink(HA_LINKS.hearthkeeper))}">${esc(t("how_hk"))}</button></div>`);
+  }
+  function openHowTo(key, name) {
+    openSheet(t("how_title", {name}), `<div class="form"><ol class="steps">
+      <li>${esc(t("how_" + key))}</li><li>${esc(t("how_then"))}</li></ol>
+      <button class="btn" data-act="${register(() => openLink(HA_LINKS[key]))}">${esc(t("how_ha"))}</button>
+      <button class="link-btn" data-act="${register(() => openLink(HA_LINKS.hearthkeeper))}">${esc(t("how_hk"))}</button></div>`);
+  }
+
+  // ---------- custom skills ----------
+  const mySkills = () => state.custom_skills || [];
+  const sparkle = ICON.sparkle("var(--accent-2)");
+  function ago(iso) {
+    if (!iso) return "";
+    const d = new Date(iso), now = new Date();
+    const days = Math.round((new Date(now.toDateString()) - new Date(d.toDateString())) / 86400000);
+    return days <= 0 ? t("ago_today") : days === 1 ? t("ago_yesterday") : t("ago_days", {n: days});
+  }
+  const SKILLS_MAX = 20;
+  function scheduleLabel(time, days) {
+    if (!time) return t("skill_manual");
+    const d = (days || []).slice().sort().join(",");
+    if (!d) return t("skill_daily", {time});
+    if (d === "0,1,2,3,4") return t("skill_weekdays", {time});
+    if (d === "5,6") return t("skill_weekend", {time});
+    const names = t("days_short").split(",");
+    return t("skill_on_days", {time, days: days.slice().sort().map(i => names[i]).join(", ")});
+  }
+  function skillSub(sk) {
+    const parts = [scheduleLabel(sk.time, sk.days)];
+    if (sk.last_run) parts.push(t("skill_ran", {when: ago(sk.last_run)}));
+    return parts.join(" · ");
+  }
+  // Built-in templates: adding one copies it into "My skills".
+  const READY_SKILLS = [
+    {id: "breakfast", cat: "food", time: "07:30",
+     name: {ru: "Рецепт завтрака", en: "Breakfast recipe"},
+     desc: {ru: "Простой завтрак на 15 минут", en: "A simple 15-minute breakfast"},
+     prompt: {ru: "Предложи один простой рецепт завтрака, который готовится не дольше 15 минут. Список продуктов и 3–5 шагов, без вступления.",
+              en: "Suggest one simple breakfast recipe that takes no more than 15 minutes. List the ingredients and 3–5 steps, no introduction."}},
+    {id: "dinner", cat: "food", time: "17:00",
+     name: {ru: "Что приготовить на ужин", en: "What's for dinner"},
+     desc: {ru: "Идея ужина на семью", en: "A family dinner idea"},
+     prompt: {ru: "Предложи идею ужина на семью из обычных продуктов: название, список покупок и короткий план готовки.",
+              en: "Suggest a family dinner from everyday groceries: the dish, a shopping list and a short cooking plan."}},
+    {id: "joke", cat: "fun", time: "09:00",
+     name: {ru: "Шутка дня", en: "Joke of the day"},
+     desc: {ru: "Добрая шутка для всей семьи", en: "A kind joke for the whole family"},
+     prompt: {ru: "Расскажи одну добрую короткую шутку, подходящую для всей семьи. Только шутку, без пояснений.",
+              en: "Tell one short, kind joke suitable for the whole family. Only the joke, no explanation."}},
+    {id: "fact", cat: "learn", time: "12:00",
+     name: {ru: "Факт дня", en: "Fact of the day"},
+     desc: {ru: "Интересный факт в двух предложениях", en: "An interesting fact in two sentences"},
+     prompt: {ru: "Расскажи один интересный и проверенный научный факт в двух-трёх предложениях.",
+              en: "Share one interesting, well-established science fact in two or three sentences."}},
+    {id: "english-word", cat: "learn", time: "08:30", days: [0, 1, 2, 3, 4],
+     name: {ru: "Английское слово дня", en: "Word of the day"},
+     desc: {ru: "Слово, перевод и пример — по будням", en: "A word, its meaning and an example — on weekdays"},
+     prompt: {ru: "Дай одно полезное английское слово уровня B1–B2: транскрипцию, перевод на русский и два примера предложений.",
+              en: "Give one useful English word at B1–B2 level: pronunciation, meaning and two example sentences."}},
+    {id: "motivation", cat: "mood", time: "08:00",
+     name: {ru: "Мотивация на день", en: "Daily motivation"},
+     desc: {ru: "Короткая мысль на утро", en: "A short thought for the morning"},
+     prompt: {ru: "Напиши одну короткую мотивирующую мысль на день, без пафоса и без цитат известных людей.",
+              en: "Write one short motivating thought for the day, without clichés or famous quotes."}},
+    {id: "weekend-ideas", cat: "family", time: "18:00", days: [4],
+     name: {ru: "Чем заняться в выходные", en: "Weekend ideas"},
+     desc: {ru: "Три идеи для семьи — по пятницам", en: "Three family ideas — on Fridays"},
+     prompt: {ru: "Предложи три идеи, чем заняться семье в выходные: одну дома, одну на улице и одну бюджетную поездку недалеко.",
+              en: "Suggest three things a family can do this weekend: one at home, one outdoors and one cheap trip nearby."}},
+  ];
+  const pick = m => m[lang] || m.en;
+  function renderReadySkills() {
+    const have = new Set(mySkills().map(sk => sk.prompt));
+    $("ready-skills").innerHTML = READY_SKILLS.map(item => {
+      const added = have.has(pick(item.prompt));
+      const open = register(e => { e.stopPropagation(); openReadySkill(item); });
+      return row({title: esc(pick(item.name)) + `<span class="chip">${esc(t("cat_" + item.cat))}</span>`,
+        sub: esc(pick(item.desc)),
+        right: added ? `<span class="add on">${ICON.line('<path d="m5 12 5 5 9-10"/>')}</span>`
+                     : `<span class="add" role="button" aria-label="${esc(t("add_skill"))}" data-act="${open}">${ICON.line(P.plus)}</span>`,
+        onClick: () => openReadySkill(item)});
+    }).join("");
+  }
+  function openReadySkill(item) {
+    if (mySkills().length >= SKILLS_MAX) { toast(t("skills_limit", {n: SKILLS_MAX})); return; }
+    const add = register(() => {
+      closeSheet();
+      saveSkill(null, {name: pick(item.name), prompt: pick(item.prompt), time: item.time || "", days: item.days || [], enabled: true},
+                t("skill_added"));
+    });
+    openSheet(pick(item.name), `<div class="form">
+      <p class="note" style="margin:0 4px">${esc(pick(item.desc))}</p>
+      <label>${esc(t("skill_prompt"))}</label><div class="quote">${esc(pick(item.prompt))}</div>
+      <p class="hint">${esc(scheduleLabel(item.time, item.days))}</p>
+      <p class="warn-note">${esc(t("skill_warn"))}</p>
+      <button class="btn" data-act="${add}">${esc(t("add_skill"))}</button></div>`);
+  }
+
+  function renderMySkills() {
+    const list = mySkills();
+    let html = row({icon: ICON.line(P.plus), title: esc(t("create_skill")), cls: "link", chev: true,
+                    onClick: () => mySkills().length >= SKILLS_MAX ? toast(t("skills_limit", {n: SKILLS_MAX})) : openSkillForm(null)});
+    html += list.length ? list.map(sk => {
+      const run = register(e => { e.stopPropagation(); runSkill(sk); });
+      return row({icon: sparkle, title: esc(sk.name), sub: esc(skillSub(sk)),
+        right: `<span class="add" role="button" aria-label="${esc(t("run_now"))}" data-act="${run}">${ICON.play}</span>`,
+        onClick: () => openSkillForm(sk)});
+    }).join("") : row({title: esc(t("no_skills"))});
+    $("my-skills").innerHTML = html;
+  }
+  function openSkillForm(sk) {
+    const save = register(() => {
+      const name = $("skill-name").value.trim(), prompt = $("skill-prompt").value.trim();
+      const time = $("skill-time").value.slice(0, 5);
+      const days = [...document.querySelectorAll("#skill-days .day.on")].map(b => +b.dataset.day);
+      if (!name || !prompt) { toast(t("need_fields")); return; }
+      closeSheet();
+      saveSkill(sk, {name, prompt, time, days: days.length === 7 ? [] : days, enabled: sk ? sk.enabled : true},
+                sk ? t("saved") : t("skill_added"));
+    });
+    let extra = "";
+    if (sk) {
+      extra =
+        (sk.time ? row({icon: ICON.line(P.bell), title: esc(t("skill_enabled")), right: sw(sk.enabled),
+                        onClick: () => { closeSheet(); saveSkill(sk, {enabled: !sk.enabled}, null); }}) : "") +
+        row({icon: ICON.play, title: esc(t("run_now")), onClick: () => { closeSheet(); runSkill(sk); }}) +
+        row({icon: ICON.line(P.trash), title: esc(t("delete_skill")), cls: "danger", onClick: () => {
+          closeSheet();
+          const go = () => setPrefs({skills: mySkills().filter(x => x.id !== sk.id)}, true);
+          const q = t("confirm_delete_skill", {name: sk.name});
+          if (tg && tg.showConfirm && !preview) tg.showConfirm(q, ok => ok && go()); else go();
+        }});
+    }
+    openSheet(sk ? sk.name : t("create_skill"), `<div class="form">
+      <label for="skill-name">${esc(t("skill_name"))}</label>
+      <input id="skill-name" maxlength="40" value="${esc(sk ? sk.name : "")}" placeholder="${esc(t("skill_name_ph"))}">
+      <label for="skill-prompt">${esc(t("skill_prompt"))}</label>
+      <textarea id="skill-prompt" maxlength="600" placeholder="${esc(t("skill_prompt_ph"))}">${esc(sk ? sk.prompt : "")}</textarea>
+      <label for="skill-time">${esc(t("skill_time"))}</label>
+      <div class="time-row"><input id="skill-time" type="time" value="${esc(sk ? sk.time : "")}">
+        <button type="button" class="link-btn" data-act="${register(() => { $("skill-time").value = ""; })}">${esc(t("skill_no_time"))}</button></div>
+      <p class="hint">${esc(t("skill_time_hint"))}</p>
+      <label>${esc(t("skill_days"))}</label>
+      <div class="days" id="skill-days">${t("days_short").split(",").map((n, i) =>
+        `<button type="button" class="day ${sk && (sk.days || []).includes(i) ? "on" : ""}" data-day="${i}"
+          aria-pressed="${sk && (sk.days || []).includes(i) ? "true" : "false"}"
+          data-act="${register(e => { const b = e.target.closest(".day"); const on = b.classList.toggle("on"); b.setAttribute("aria-pressed", on); })}">${esc(n)}</button>`).join("")}</div>
+      <p class="hint">${esc(t("skill_days_hint"))}</p>
+      <button class="btn" data-act="${save}">${esc(t("save"))}</button></div>
+      ${extra ? `<div class="card" style="margin-top:16px">${extra}</div>` : ""}`);
+  }
+  function saveSkill(sk, patch, okText) {
+    const list = mySkills().map(x => ({...x}));
+    if (sk) { const i = list.findIndex(x => x.id === sk.id); if (i >= 0) list[i] = {...list[i], ...patch}; }
+    else list.push(patch);
+    return setPrefs({skills: list.map(({last_run, ...rest}) => rest)}, true).then(ok => { if (ok && okText) toast(okText); return ok; });
+  }
+  async function runSkill(sk) {
+    try { await api("run_skill", {id: sk.id}); haptic("ok"); toast(t("skill_sent")); }
+    catch (err) { fail(err); }
+  }
+
   function openText(title, value, onSave) {
     const id = register(() => { const v = $("text-input").value; closeSheet(); if (v) onSave(v.trim()); });
     openSheet(title, `<div class="time-box"><input type="text" id="text-input" value="${esc(value || "")}" maxlength="40" placeholder="${esc(t("brief_name_ph"))}">
@@ -838,11 +1787,32 @@ svg{display:block}
     })).join(""));
   }
 
+  let lockedY = null;
+  function lockScroll() {
+    if (lockedY !== null) return;
+    lockedY = window.scrollY;
+    document.body.style.top = `-${lockedY}px`;
+    document.body.classList.add("sheet-lock");
+    try { tg && tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {}
+  }
+  function unlockScroll() {
+    if (lockedY === null) return;
+    document.body.classList.remove("sheet-lock");
+    document.body.style.top = "";
+    window.scrollTo(0, lockedY);
+    lockedY = null;
+    try { tg && tg.enableVerticalSwipes && tg.enableVerticalSwipes(); } catch (e) {}
+  }
   function openSheet(title, html) {
     $("sheet-title").textContent = title; $("sheet-body").innerHTML = html;
+    $("sheet").scrollTop = 0;
     $("backdrop").classList.add("open"); $("sheet").classList.add("open");
+    lockScroll();
   }
-  function closeSheet() { $("backdrop").classList.remove("open"); $("sheet").classList.remove("open"); }
+  function closeSheet() {
+    $("backdrop").classList.remove("open"); $("sheet").classList.remove("open");
+    unlockScroll();
+  }
   window.closeSheet = closeSheet;
 
   function openModes() {
@@ -885,10 +1855,19 @@ svg{display:block}
   }
   if (tg) {
     tg.ready(); tg.expand();
-    tg.onEvent && tg.onEvent("themeChanged", () => { applyTheme(); refreshState(true); });
-    tg.onEvent && tg.onEvent("viewportChanged", ({isStateStable}) => {
-      if (isStateStable && tg.isExpanded) refreshState(true);
-    });
+    tg.onEvent && tg.onEvent("themeChanged", () => { applyTheme(); backgroundRefresh(); });
+    // No refresh on viewportChanged: the on-screen keyboard resizes the
+    // viewport, and re-rendering then would destroy the focused field and
+    // close the keyboard at once.
+    tg.onEvent && tg.onEvent("activated", backgroundRefresh);
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) backgroundRefresh(); });
+  function backgroundRefresh() {
+    const el = document.activeElement;
+    // Never redraw under someone typing or with a sheet open.
+    if (!state || (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) || $("sheet").classList.contains("open")
+        || calAdding || mailEditing || (sub && sub.build === addPluginPage)) return;
+    rawApi("state").then(data => { state = data.state; render(); drawSub(); }).catch(() => {});
   }
   applyTheme();
 

@@ -59,6 +59,13 @@ class BriefingSources:
     todo: str | None = None
     mail: tuple[str, ...] = ()
     home: bool = True
+    # Secret iCal links the user added in the Mini App; read only for them.
+    ics: tuple[str, ...] = ()
+
+    @property
+    def has_calendars(self) -> bool:
+        """Return True when any calendar, shared or personal, is set."""
+        return bool(self.calendars or self.ics)
 
 
 _TEXTS: dict[str, dict[str, Any]] = {
@@ -257,8 +264,14 @@ async def async_build_briefing(
     mailbox: Mailbox | None = None,
     allow_cloud_for_mail: bool = False,
     kind: str | None = None,
+    extra_lines: list[str] | None = None,
+    personal_mail: str | None = None,
 ) -> str:
     """Build the briefing text for one chat.
+
+    ``extra_lines`` come from connection plugins and follow the home status
+    in the morning and full briefing. ``personal_mail`` is the digest of the
+    user's own mailbox and replaces the shared mail section.
 
     ``kind`` is ``"morning"`` (plan for the day — calendar, weather, todo,
     home, mail), ``"evening"`` (what happened today — shorter summary) or
@@ -270,14 +283,17 @@ async def async_build_briefing(
     blocks = [_header(now, texts)]
 
     if kind == BRIEFING_EVENING:
-        blocks.append(_async_evening_summary(hass, sources, texts))
+        blocks.append(await _async_evening_summary(hass, sources, texts))
     else:
         for block in (
             await _async_weather(hass, sources, texts),
             await _async_calendar(hass, sources, texts, now),
             _home_status(hass, sources, texts),
+            "\n".join(extra_lines or ()),
             await _async_todo(hass, sources, texts),
-            await async_mail_digest(
+            personal_mail
+            if personal_mail is not None
+            else await async_mail_digest(
                 hass,
                 sources,
                 language,
@@ -295,7 +311,7 @@ def texts_for(language: str) -> dict[str, Any]:
     return _TEXTS.get(language, _TEXTS[DEFAULT_LANGUAGE])
 
 
-def _async_evening_summary(
+async def _async_evening_summary(
     hass: HomeAssistant, sources: BriefingSources, texts: dict[str, Any]
 ) -> str:
     """Build a short evening summary: what was on today, what is on now."""
@@ -303,30 +319,16 @@ def _async_evening_summary(
 
     # Count of today's calendar events
     today_events: int = 0
-    if sources.calendars:
+    if sources.has_calendars:
         start = dt_util.start_of_local_day(dt_util.now())
         tomorrow = start + timedelta(days=1)
-        try:
-            response = hass.services.async_call(
-                "calendar",
-                "get_events",
-                {
-                    "start_date_time": start.isoformat(),
-                    "end_date_time": tomorrow.isoformat(),
-                },
-                target={"entity_id": list(sources.calendars)},
-                blocking=True,
-                return_response=True,
-            )
-            events = _parse_events(response or {})
-            today_events = sum(1 for event in events if start <= event[0] < tomorrow)
-        except (HomeAssistantError, Exception):
-            pass
+        events, _ = await _async_fetch_events(hass, sources, start, tomorrow)
+        today_events = sum(1 for event in events if start <= event[0] < tomorrow)
 
     todo_count: int = 0
     if sources.todo:
         try:
-            result = hass.services.async_call(
+            result = await hass.services.async_call(
                 "todo",
                 "get_items",
                 {"entity_id": sources.todo, "status": "needs_action"},
@@ -339,14 +341,11 @@ def _async_evening_summary(
                     items = entity_result.get("items")
                     if isinstance(items, list):
                         todo_count = len(items)
-        except (HomeAssistantError, Exception):
+        except HomeAssistantError:
             pass
 
     home_light_count: int = 0
     if sources.home:
-        from .shop import _clean
-
-        _ = _clean  # silence unused import
         lights = 0
         for entity_id in hass.states.async_entity_ids("light"):
             state = hass.states.get(entity_id)
@@ -365,6 +364,60 @@ def _async_evening_summary(
     return "\n".join(lines)
 
 
+async def _async_fetch_events(
+    hass: HomeAssistant, sources: BriefingSources, start: datetime, end: datetime
+) -> tuple[list[tuple[datetime, str, bool]], bool]:
+    """Return merged HA and personal events, and whether HA calendars failed."""
+    events: list[tuple[datetime, str, bool]] = []
+    failed = False
+    if sources.calendars:
+        try:
+            response = await hass.services.async_call(
+                "calendar",
+                "get_events",
+                {
+                    "start_date_time": start.isoformat(),
+                    "end_date_time": end.isoformat(),
+                },
+                target={"entity_id": list(sources.calendars)},
+                blocking=True,
+                return_response=True,
+            )
+            events.extend(_parse_events(response))
+        except HomeAssistantError as err:
+            _LOGGER.debug("Calendar is unavailable (%s)", type(err).__name__)
+            failed = True
+    if sources.ics:
+        from .personal_calendar import async_ics_events
+
+        events.extend(await async_ics_events(hass, sources.ics, start, end))
+    seen: set[tuple[datetime, str]] = set()
+    merged = []
+    for event in events:
+        if (event[0], event[1]) not in seen:
+            seen.add((event[0], event[1]))
+            merged.append(event)
+    merged.sort(key=lambda item: (not item[2], item[0]))
+    return merged, failed
+
+
+async def async_events_between(
+    hass: HomeAssistant,
+    sources: BriefingSources,
+    start: datetime,
+    end: datetime,
+) -> list[tuple[datetime, str, bool]]:
+    """Return ``(start, summary, all_day)`` of events starting in ``[start, end)``.
+
+    An unavailable calendar gives an empty list; callers poll every minute and
+    must not fail the whole tick.
+    """
+    if not sources.has_calendars:
+        return []
+    events, _ = await _async_fetch_events(hass, sources, start, end)
+    return [event for event in events if start <= event[0] < end]
+
+
 async def async_calendar_day(
     hass: HomeAssistant,
     sources: BriefingSources,
@@ -373,7 +426,7 @@ async def async_calendar_day(
     tomorrow: bool = False,
 ) -> str | None:
     """Return one day of events, or None when no calendar is configured."""
-    if not sources.calendars:
+    if not sources.has_calendars:
         return None
 
     texts = texts_for(language)
@@ -381,23 +434,10 @@ async def async_calendar_day(
         days=1 if tomorrow else 0
     )
     end = start + timedelta(days=1)
-    try:
-        response = await hass.services.async_call(
-            "calendar",
-            "get_events",
-            {
-                "start_date_time": start.isoformat(),
-                "end_date_time": end.isoformat(),
-            },
-            target={"entity_id": list(sources.calendars)},
-            blocking=True,
-            return_response=True,
-        )
-    except HomeAssistantError as err:
-        _LOGGER.debug("Calendar is unavailable (%s)", type(err).__name__)
+    events, failed = await _async_fetch_events(hass, sources, start, end)
+    if failed and not events:
         return texts["unavailable"].format(section=texts["calendar"])
-
-    events = [event for event in _parse_events(response) if start <= event[0] < end]
+    events = [event for event in events if start <= event[0] < end]
     _LOGGER.debug("Skill read %s calendar events", len(events))
 
     lines = [texts["calendar_tomorrow" if tomorrow else "calendar_today"]]
@@ -463,28 +503,16 @@ async def _async_calendar(
     now: datetime,
 ) -> str | None:
     """List today's events, and tomorrow's when today is empty."""
-    if not sources.calendars:
+    if not sources.has_calendars:
         return None
 
     start = dt_util.start_of_local_day(now)
     tomorrow = start + timedelta(days=1)
-    try:
-        response = await hass.services.async_call(
-            "calendar",
-            "get_events",
-            {
-                "start_date_time": start.isoformat(),
-                "end_date_time": (start + timedelta(days=2)).isoformat(),
-            },
-            target={"entity_id": list(sources.calendars)},
-            blocking=True,
-            return_response=True,
-        )
-    except HomeAssistantError as err:
-        _LOGGER.debug("Calendar is unavailable (%s)", type(err).__name__)
+    events, failed = await _async_fetch_events(
+        hass, sources, start, start + timedelta(days=2)
+    )
+    if failed and not events:
         return texts["unavailable"].format(section=texts["calendar"])
-
-    events = _parse_events(response)
     _LOGGER.debug("Briefing read %s calendar events", len(events))
 
     today = [event for event in events if event[0] < tomorrow]

@@ -49,9 +49,10 @@ brief:
           mode: box
     kind:
       name: Kind
-      description: Morning (plan for the day) or evening (today's summary). Omit for the full briefing.
+      description: Morning (plan for the day), evening (today's summary) or mail (unread mail digest). Omit for the full briefing.
       selector:
         select:
           options:
             - morning
             - evening
+            - mail

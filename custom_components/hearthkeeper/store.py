@@ -11,8 +11,8 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
-from dataclasses import asdict, dataclass
 from collections.abc import Mapping
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -23,6 +23,7 @@ from .const import (
     BRIEFING_KINDS,
     BRIEFING_MORNING,
     DEFAULT_BRIEF_TIME,
+    NEW_USER_BRIEF_TIME,
     STORAGE_CHATS,
     STORAGE_VERSION,
 )
@@ -85,6 +86,89 @@ class BriefingPlan:
         )
 
 
+EVENT_REMINDER_CHOICES = (0, 5, 10, 15, 30, 60)
+MASCOT_COLORS = ("lilac", "mint", "peach", "sky", "sun", "rose")
+MASCOT_NAME_MAX = 20
+SKILL_NAME_MAX = 40
+SKILL_PROMPT_MAX = 600
+SKILLS_MAX = 20
+
+
+@dataclass(slots=True)
+class CustomSkill:
+    """A request a user wrote once and the agent answers on demand or daily.
+
+    ``time`` is ``HH:MM`` for a daily run, empty for "only when I tap run".
+    ``last_run`` is an ISO timestamp the page shows; only the bot sets it.
+    ``days`` are weekdays (0 is Monday) the timed run happens on; empty means
+    every day.
+    """
+
+    id: str
+    name: str
+    prompt: str
+    time: str = ""
+    enabled: bool = True
+    last_run: str = ""
+    days: list[int] = field(default_factory=list)
+
+    def runs_on(self, weekday: int) -> bool:
+        """Return True when the timed run happens on ``weekday``."""
+        return not self.days or weekday in self.days
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the persisted representation."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: object) -> CustomSkill | None:
+        """Restore a skill, or None when the value is malformed."""
+        if not isinstance(data, Mapping):
+            return None
+        name = data.get("name")
+        prompt = data.get("prompt")
+        if not isinstance(name, str) or not 0 < len(name.strip()) <= SKILL_NAME_MAX:
+            return None
+        if not isinstance(prompt, str):
+            return None
+        if not 0 < len(prompt.strip()) <= SKILL_PROMPT_MAX:
+            return None
+        raw_time = data.get("time") or ""
+        time = normalise_time(raw_time) if raw_time else ""
+        if time is None:
+            return None
+        enabled = data.get("enabled", True)
+        if not isinstance(enabled, bool):
+            return None
+        last_run = data.get("last_run") or ""
+        if not isinstance(last_run, str):
+            last_run = ""
+        raw_days = data.get("days") or []
+        if not isinstance(raw_days, list) or any(
+            not isinstance(day, int) or isinstance(day, bool) or not 0 <= day <= 6
+            for day in raw_days
+        ):
+            return None
+        days = sorted(set(raw_days))
+        if len(days) == 7:
+            days = []
+        raw_id = data.get("id")
+        skill_id = (
+            raw_id
+            if isinstance(raw_id, str) and 0 < len(raw_id) <= 32
+            else uuid.uuid4().hex[:8]
+        )
+        return cls(
+            id=skill_id,
+            name=name.strip(),
+            prompt=prompt.strip(),
+            time=time,
+            enabled=enabled,
+            last_run=last_run,
+            days=days,
+        )
+
+
 @dataclass(slots=True)
 class ChatContext:
     """Per-chat overrides and conversation state."""
@@ -104,6 +188,16 @@ class ChatContext:
     quiet: list[str] | None = None
     # Overridden briefing sources only: weather, calendars, mail, home.
     sources: dict[str, Any] | None = None
+    # Requests the user wrote in the Mini App. Not a household override, so a
+    # settings reset keeps them.
+    custom_skills: list[CustomSkill] = field(default_factory=list)
+    # Minutes before a calendar event to remind about it; 0 turns it off.
+    event_reminder: int = 0
+    # ``HH:MM`` to announce today's birthdays from the calendars; empty is off.
+    birthdays: str = ""
+    # How the Mini App mascot looks for this user; empty means the default.
+    mascot_color: str = ""
+    mascot_name: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         """Return the persisted representation."""
@@ -135,6 +229,24 @@ class ChatContext:
             briefings=_briefings_or_none(data.get("briefings")),
             quiet=_quiet_or_none(data.get("quiet")),
             sources=_sources_or_none(data.get("sources")),
+            custom_skills=_custom_skills(data.get("custom_skills")),
+            event_reminder=(
+                data["event_reminder"]
+                if data.get("event_reminder") in EVENT_REMINDER_CHOICES
+                else 0
+            ),
+            birthdays=normalise_time(data.get("birthdays")) or "",
+            mascot_color=(
+                data["mascot_color"]
+                if data.get("mascot_color") in MASCOT_COLORS
+                else ""
+            ),
+            mascot_name=(
+                data["mascot_name"].strip()
+                if isinstance(data.get("mascot_name"), str)
+                and len(data["mascot_name"].strip()) <= MASCOT_NAME_MAX
+                else ""
+            ),
         )
 
     @property
@@ -156,6 +268,14 @@ class ChatContext:
 def _str_or_none(value: object) -> str | None:
     """Return value when it is a non-empty string."""
     return value if isinstance(value, str) and value else None
+
+
+def _custom_skills(value: object) -> list[CustomSkill]:
+    """Return stored custom skills, dropping any that fail validation."""
+    if not isinstance(value, list):
+        return []
+    skills = [CustomSkill.from_dict(item) for item in value[:SKILLS_MAX]]
+    return [skill for skill in skills if skill is not None]
 
 
 def _briefings_or_none(value: object) -> list[BriefingPlan] | None:
@@ -226,6 +346,15 @@ class ChatStore:
         chat = self._chats.get(chat_id)
         if chat is None:
             chat = ChatContext(chat_id=chat_id, conversation_id=f"tg:{chat_id}")
+            if chat_id > 0:
+                # A new person gets a morning briefing of their own at once.
+                chat.briefings = [
+                    BriefingPlan(
+                        id=uuid.uuid4().hex[:8],
+                        kind=BRIEFING_MORNING,
+                        time=NEW_USER_BRIEF_TIME,
+                    )
+                ]
             self._chats[chat_id] = chat
         return chat
 

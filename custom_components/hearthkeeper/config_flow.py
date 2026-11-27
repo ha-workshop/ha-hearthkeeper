@@ -27,35 +27,27 @@ from homeassistant.helpers.selector import (
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
-    TimeSelector,
 )
 from homeassistant.helpers.translation import async_get_translations
 
 from .assist import async_list_pipelines
 from .const import (
+    CONF_ADMINS,
     CONF_ALLOW_CLOUD_FOR_MAIL,
     CONF_ALLOW_GROUPS,
     CONF_BRIEF_CALENDARS,
-    CONF_BRIEF_CHATS,
-    CONF_BRIEF_ENABLED,
-    CONF_BRIEF_HOME,
     CONF_BRIEF_MAIL,
-    CONF_BRIEF_TIME,
-    CONF_BRIEF_WEATHER,
     CONF_KEEP_AUDIO,
     CONF_MAX_VOICE_SECONDS,
     CONF_PIPELINE_ID,
-    CONF_QUIET_END,
-    CONF_QUIET_START,
-    CONF_REPLY_MODE,
     CONF_TELEGRAM_ENTRY,
     CONF_TODO_ENTITY,
+    CONF_USERS,
     CONF_WEBAPP_URL,
     DEFAULT_OPTIONS,
     DOMAIN,
     NAME,
     PIPELINE_NONE,
-    REPLY_MODES,
     TELEGRAM_DOMAIN,
 )
 from .webapp import clean_webapp_url
@@ -154,7 +146,11 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
             user_input[CONF_PIPELINE_ID] = (
                 None if pipeline_id in (None, "", PIPELINE_NONE) else pipeline_id
             )
-            return self.async_create_entry(data=user_input)
+            # Fields moved to the Mini App are no longer in the form; keep
+            # their saved values instead of wiping them on every save.
+            return self.async_create_entry(
+                data={**self.config_entry.options, **user_input}
+            )
 
         return self.async_show_form(
             step_id="init", data_schema=await self._async_schema()
@@ -187,13 +183,21 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                     )
                 ),
                 vol.Optional(
-                    CONF_REPLY_MODE,
-                    default=options.get(
-                        CONF_REPLY_MODE, DEFAULT_OPTIONS[CONF_REPLY_MODE]
-                    ),
+                    CONF_USERS,
+                    description={
+                        "suggested_value": [
+                            str(cid) for cid in options.get(CONF_USERS) or ()
+                        ]
+                    },
                 ): SelectSelector(
                     SelectSelectorConfig(
-                        options=list(REPLY_MODES), translation_key="reply_mode"
+                        options=[
+                            {"value": str(cid), "label": str(cid)}
+                            for cid in sorted(self._known_private_chats())
+                        ],
+                        multiple=True,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        custom_value=True,
                     )
                 ),
                 vol.Optional(
@@ -236,18 +240,6 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                     ),
                 ): BooleanSelector(),
                 vol.Optional(
-                    CONF_BRIEF_ENABLED,
-                    default=options.get(
-                        CONF_BRIEF_ENABLED, DEFAULT_OPTIONS[CONF_BRIEF_ENABLED]
-                    ),
-                ): BooleanSelector(),
-                vol.Optional(
-                    CONF_BRIEF_TIME,
-                    default=options.get(
-                        CONF_BRIEF_TIME, DEFAULT_OPTIONS[CONF_BRIEF_TIME]
-                    ),
-                ): TimeSelector(),
-                vol.Optional(
                     CONF_BRIEF_CALENDARS,
                     description={
                         "suggested_value": list(options.get(CONF_BRIEF_CALENDARS) or ())
@@ -255,10 +247,6 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                 ): EntitySelector(
                     EntitySelectorConfig(domain="calendar", multiple=True)
                 ),
-                vol.Optional(
-                    CONF_BRIEF_WEATHER,
-                    description={"suggested_value": options.get(CONF_BRIEF_WEATHER)},
-                ): EntitySelector(EntitySelectorConfig(domain="weather")),
                 vol.Optional(
                     CONF_BRIEF_MAIL,
                     description={
@@ -277,29 +265,11 @@ class HearthkeeperOptionsFlow(OptionsFlowWithReload):
                     ),
                 ): BooleanSelector(),
                 vol.Optional(
-                    CONF_BRIEF_HOME,
-                    default=options.get(
-                        CONF_BRIEF_HOME, DEFAULT_OPTIONS[CONF_BRIEF_HOME]
-                    ),
-                ): BooleanSelector(),
-                vol.Optional(
-                    CONF_QUIET_START,
-                    default=options.get(
-                        CONF_QUIET_START,
-                        DEFAULT_OPTIONS.get(CONF_QUIET_START, "23:00"),
-                    ),
-                ): TimeSelector(),
-                vol.Optional(
-                    CONF_QUIET_END,
-                    default=options.get(
-                        CONF_QUIET_END,
-                        DEFAULT_OPTIONS.get(CONF_QUIET_END, "07:00"),
-                    ),
-                ): TimeSelector(),
-                vol.Optional(
-                    CONF_BRIEF_CHATS,
+                    CONF_ADMINS,
                     description={
-                        "suggested_value": list(options.get(CONF_BRIEF_CHATS) or ())
+                        "suggested_value": [
+                            str(cid) for cid in options.get(CONF_ADMINS) or ()
+                        ]
                     },
                 ): SelectSelector(
                     SelectSelectorConfig(

@@ -13,12 +13,21 @@ be picked.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Collection, Mapping
 from typing import Any
 
-import uuid
-
-from .store import ChatContext, BriefingPlan, normalise_time
+from .const import BRIEFING_KINDS
+from .store import (
+    EVENT_REMINDER_CHOICES,
+    MASCOT_COLORS,
+    MASCOT_NAME_MAX,
+    SKILLS_MAX,
+    BriefingPlan,
+    ChatContext,
+    CustomSkill,
+    normalise_time,
+)
 
 PREF_KEYS = frozenset(
     (
@@ -29,6 +38,10 @@ PREF_KEYS = frozenset(
         "calendars",
         "mail",
         "home",
+        "skills",
+        "event_reminder",
+        "birthdays",
+        "mascot",
     )
 )
 
@@ -78,6 +91,25 @@ def apply_preferences(
                         raise InvalidPreference(key)
                     plans.append(plan)
                 updates[key] = plans if plans else []
+        elif key == "event_reminder":
+            if isinstance(value, bool) or value not in EVENT_REMINDER_CHOICES:
+                raise InvalidPreference(key)
+            updates[key] = value
+        elif key == "mascot":
+            if not isinstance(value, Mapping):
+                raise InvalidPreference(key)
+            color = value.get("color", "")
+            name = value.get("name", "")
+            if color not in ("", *MASCOT_COLORS) or not isinstance(name, str):
+                raise InvalidPreference(key)
+            if len(name.strip()) > MASCOT_NAME_MAX:
+                raise InvalidPreference(key)
+            updates["mascot_color"] = color
+            updates["mascot_name"] = name.strip()
+        elif key == "birthdays":
+            updates[key] = "" if value in ("", None) else _time(key, value)
+        elif key == "skills":
+            updates["custom_skills"] = _skills(value, chat.custom_skills)
         elif key == "quiet":
             updates[key] = _quiet(value)
         elif key == "weather":
@@ -113,7 +145,7 @@ def _as_briefing_plan(raw: object) -> BriefingPlan | None:
     if time is None:
         return None
     kind = raw.get("kind")
-    if not isinstance(kind, str) or kind not in ("morning", "evening"):
+    if not isinstance(kind, str) or kind not in BRIEFING_KINDS:
         return None
     enabled = raw.get("enabled", True)
     if not isinstance(enabled, bool):
@@ -124,6 +156,24 @@ def _as_briefing_plan(raw: object) -> BriefingPlan | None:
     raw_id = raw.get("id")
     plan_id = raw_id if isinstance(raw_id, str) and 0 < len(raw_id) <= 32 else uuid.uuid4().hex[:8]  # type: ignore[attr-defined]
     return BriefingPlan(id=plan_id, kind=kind, time=time, name=name.strip(), enabled=enabled)
+
+
+def _skills(value: object, current: list[CustomSkill]) -> list[CustomSkill]:
+    """Return validated custom skills; the bot alone sets ``last_run``."""
+    if not isinstance(value, list) or len(value) > SKILLS_MAX:
+        raise InvalidPreference("skills")
+    last_runs = {skill.id: skill.last_run for skill in current}
+    skills: list[CustomSkill] = []
+    for raw in value:
+        if isinstance(raw, dict):
+            raw = {**raw, "last_run": last_runs.get(str(raw.get("id")), "")}
+        skill = CustomSkill.from_dict(raw)
+        if skill is None:
+            raise InvalidPreference("skills")
+        skills.append(skill)
+    if len({skill.id for skill in skills}) != len(skills):
+        raise InvalidPreference("skills")
+    return skills
 
 
 def _quiet(value: object) -> list[str] | None:

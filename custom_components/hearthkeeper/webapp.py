@@ -32,9 +32,21 @@ from urllib.parse import parse_qsl, urlsplit
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 
-from .const import DOMAIN, REPLY_MODES
+from .connections import PluginError, parse_repository
+from .const import (
+    CONF_BRIEF_CALENDARS,
+    CONF_BRIEF_MAIL,
+    CONF_BRIEF_WEATHER,
+    CONF_CONNECTION_REPOS,
+    CONF_TODO_ENTITY,
+    DOMAIN,
+    REPLY_MODES,
+)
+from .personal_calendar import CalendarError
+from .personal_mail import MailboxError
 from .settings import InvalidPreference
 
 if TYPE_CHECKING:
@@ -251,7 +263,7 @@ class WebAppApiView(HomeAssistantView):
         runtime, user = found
 
         try:
-            result = await _async_dispatch(runtime, user, body)
+            result = await _async_dispatch(hass, runtime, user, body)
         except _ApiError as err:
             return _error(err.status, err.code)
         return web.json_response(result, headers=_SECURITY_HEADERS)
@@ -288,7 +300,8 @@ def _authorise(
         user = validate_init_data(init_data, runtime.bot_token)
         if user is None:
             continue
-        if user.id in runtime.allowed_chats:
+        users = getattr(runtime, "users", frozenset())
+        if user.id in runtime.allowed_chats and (not users or user.id in users):
             return runtime, user
         _LOGGER.debug("Mini App call from a user outside the allowlist")
         return None
@@ -296,7 +309,10 @@ def _authorise(
 
 
 async def _async_dispatch(
-    runtime: HearthkeeperRuntime, user: WebAppUser, body: Mapping[str, Any]
+    hass: HomeAssistant,
+    runtime: HearthkeeperRuntime,
+    user: WebAppUser,
+    body: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Run one API action for the user's private chat."""
     action = body.get("action")
@@ -304,7 +320,108 @@ async def _async_dispatch(
     chat_id = user.id
 
     if action == "state":
-        return {"ok": True, "state": _state(brain, user)}
+        return {"ok": True, "state": _state(brain, user, runtime)}
+
+    if action in ("preview_connection", "add_connection", "remove_connection"):
+        if user.id not in getattr(runtime, "admins", ()):
+            raise _ApiError(HTTPStatus.FORBIDDEN, "forbidden")
+        repo = body.get("repo")
+        if not isinstance(repo, str) or parse_repository(repo) is None:
+            raise _ApiError(HTTPStatus.BAD_REQUEST, "bad_repo")
+        repo = repo.strip()
+        entry = hass.config_entries.async_get_entry(getattr(runtime, "entry_id", ""))
+        if entry is None:
+            raise _ApiError(HTTPStatus.CONFLICT, "not_loaded")
+        repos = [r for r in entry.options.get(CONF_CONNECTION_REPOS) or () if r != repo]
+        if action == "remove_connection":
+            _LOGGER.info("Mini App: Telegram user %s removed plugin %s", user.id, repo)
+        else:
+            try:
+                plugin = await runtime.connections.async_fetch(repo)
+            except PluginError as err:
+                raise _ApiError(HTTPStatus.BAD_REQUEST, "bad_plugin") from err
+            if action == "preview_connection":
+                language = brain.chat_language(chat_id)
+                return {"ok": True, "plugin": plugin.payload(hass, language)}
+            repos.append(repo)
+            _LOGGER.info("Mini App: Telegram user %s added plugin %s", user.id, repo)
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, CONF_CONNECTION_REPOS: repos}
+        )
+        hass.config_entries.async_schedule_reload(entry.entry_id)
+        return {"ok": True, "reloading": True}
+
+    if action in ("shared", "set_shared"):
+        if user.id not in getattr(runtime, "admins", ()):
+            raise _ApiError(HTTPStatus.FORBIDDEN, "forbidden")
+        entry = hass.config_entries.async_get_entry(getattr(runtime, "entry_id", ""))
+        if entry is None:
+            raise _ApiError(HTTPStatus.CONFLICT, "not_loaded")
+        mail_plugins = runtime.connections.integrations("mail")
+        if action == "shared":
+            return {
+                "ok": True,
+                "shared": shared_sources(hass, entry.options, mail_plugins),
+            }
+        key, value = body.get("key"), body.get("value")
+        try:
+            options = apply_shared_source(
+                hass, entry.options, key, value, mail_plugins
+            )
+        except ValueError as err:
+            raise _ApiError(HTTPStatus.BAD_REQUEST, "bad_value") from err
+        _LOGGER.info(
+            "Mini App: Telegram user %s changed the shared %s", user.id, key
+        )
+        hass.config_entries.async_update_entry(entry, options=options)
+        # The runtime is built from the options; reloading applies them.
+        hass.config_entries.async_schedule_reload(entry.entry_id)
+        return {"ok": True, "reloading": True}
+
+    if action == "set_mail":
+        try:
+            box = await brain.async_set_personal_mail(chat_id, body.get("mail"))
+        except MailboxError as err:
+            raise _ApiError(HTTPStatus.BAD_REQUEST, f"mail_{err.code}") from err
+        return {"ok": True, "mail": box, "state": _state(brain, user, runtime)}
+
+    if action == "add_calendar":
+        try:
+            item = await brain.async_add_personal_calendar(
+                chat_id, body.get("name"), body.get("url")
+            )
+        except CalendarError as err:
+            raise _ApiError(HTTPStatus.BAD_REQUEST, f"cal_{err.code}") from err
+        return {"ok": True, "calendar": item, "state": _state(brain, user, runtime)}
+
+    if action == "remove_calendar":
+        await brain.async_remove_personal_calendar(chat_id, body.get("id"))
+        return {"ok": True, "state": _state(brain, user, runtime)}
+
+    if action == "remove_mail":
+        await brain.async_remove_personal_mail(chat_id)
+        return {"ok": True, "state": _state(brain, user, runtime)}
+
+    if action == "connections":
+        plugins = await runtime.connections.async_plugins()
+        language = brain.chat_language(chat_id)
+        return {
+            "ok": True,
+            "connections": [plugin.payload(hass, language) for plugin in plugins],
+        }
+
+    if action == "run_skill":
+        skill_id = body.get("id")
+        if not isinstance(skill_id, str) or not brain.has_custom_skill(
+            chat_id, skill_id
+        ):
+            raise _ApiError(HTTPStatus.BAD_REQUEST, "bad_request")
+        # The agent may take a minute; the answer arrives in the chat.
+        brain.hass.async_create_background_task(
+            brain.async_run_custom_skill(chat_id, skill_id),
+            f"{DOMAIN} custom skill",
+        )
+        return {"ok": True}
 
     if action == "set_reply_mode":
         mode = body.get("mode")
@@ -347,12 +464,97 @@ async def _async_dispatch(
     else:
         raise _ApiError(HTTPStatus.BAD_REQUEST, "bad_request")
 
-    return {"ok": True, "state": _state(brain, user)}
+    return {"ok": True, "state": _state(brain, user, runtime)}
 
 
-def _state(brain: Any, user: WebAppUser) -> dict[str, Any]:
+# Shared sources an admin may change from the page, and their options keys.
+_SHARED_KEYS: dict[str, str] = {
+    "weather": CONF_BRIEF_WEATHER,
+    "calendars": CONF_BRIEF_CALENDARS,
+    "mail": CONF_BRIEF_MAIL,
+    "todo": CONF_TODO_ENTITY,
+}
+_MULTI = frozenset(("calendars", "mail"))
+
+
+def _candidates(
+    hass: HomeAssistant, mail_integrations: set[str] | None = None
+) -> dict[str, list[str]]:
+    """Return every entity that can feed each shared source.
+
+    Mail comes from IMAP sensors and from the integrations of mail plugins.
+    """
+    registry = er.async_get(hass)
+    platforms = {"imap", *(mail_integrations or ())}
+    mail = sorted(
+        entry.entity_id
+        for entry in registry.entities.values()
+        if entry.platform in platforms and entry.domain == "sensor"
+    )
+    return {
+        "weather": sorted(hass.states.async_entity_ids("weather")),
+        "calendars": sorted(hass.states.async_entity_ids("calendar")),
+        "mail": mail,
+        "todo": sorted(hass.states.async_entity_ids("todo")),
+    }
+
+
+def shared_sources(
+    hass: HomeAssistant,
+    options: Mapping[str, Any],
+    mail_integrations: set[str] | None = None,
+) -> dict[str, Any]:
+    """Return the shared sources and what an admin may pick for each."""
+    def name(entity_id: str) -> str:
+        state = hass.states.get(entity_id)
+        friendly = state.attributes.get("friendly_name") if state else None
+        return friendly if isinstance(friendly, str) and friendly else entity_id
+
+    result: dict[str, Any] = {}
+    for key, entity_ids in _candidates(hass, mail_integrations).items():
+        current = options.get(_SHARED_KEYS[key])
+        if key in _MULTI:
+            selected = [item for item in current or () if isinstance(item, str)]
+        else:
+            selected = [current] if isinstance(current, str) and current else []
+        result[key] = {
+            "multiple": key in _MULTI,
+            "selected": selected,
+            "choices": [{"id": item, "name": name(item)} for item in entity_ids],
+        }
+    return result
+
+
+def apply_shared_source(
+    hass: HomeAssistant,
+    options: Mapping[str, Any],
+    key: object,
+    value: object,
+    mail_integrations: set[str] | None = None,
+) -> dict[str, Any]:
+    """Return new options with one shared source changed; ValueError if bad."""
+    if not isinstance(key, str) or key not in _SHARED_KEYS:
+        raise ValueError("key")
+    allowed = set(_candidates(hass, mail_integrations)[key])
+    if key in _MULTI:
+        if not isinstance(value, list) or any(
+            not isinstance(item, str) or item not in allowed for item in value
+        ):
+            raise ValueError(key)
+        new_value: Any = list(dict.fromkeys(value))
+    elif value in (None, ""):
+        new_value = None
+    elif isinstance(value, str) and value in allowed:
+        new_value = value
+    else:
+        raise ValueError(key)
+    return {**options, _SHARED_KEYS[key]: new_value}
+
+
+def _state(brain: Any, user: WebAppUser, runtime: Any = None) -> dict[str, Any]:
     """Return the page state with the account the page was opened from."""
     state = dict(brain.webapp_state(user.id, user.first_name))
+    state["is_admin"] = user.id in getattr(runtime, "admins", ())
     state["account"] = {
         "id": user.id,
         "name": " ".join(filter(None, (user.first_name, user.last_name))),

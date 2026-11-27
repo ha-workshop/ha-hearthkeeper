@@ -247,6 +247,7 @@ class Transport:
         *,
         telegram_entry_id: str,
         allowed_chats: set[int],
+        users: frozenset[int] = frozenset(),
         allow_groups: bool,
         bot_token: str | None = None,
     ) -> None:
@@ -255,6 +256,7 @@ class Transport:
         self._bot_token = bot_token
         self._telegram_entry_id = telegram_entry_id
         self._allowed_chats = allowed_chats
+        self._users = users
         self._allow_groups = allow_groups
         self._handler: Callable[[IncomingMessage], Awaitable[None]] | None = None
         self._bot_username: str | None = None
@@ -389,6 +391,13 @@ class Transport:
         if self._allowed_chats and message.chat_id not in self._allowed_chats:
             _LOGGER.debug("Ignoring message from a chat outside the allowlist")
             return False
+
+        if self._users:
+            # In a private chat the chat id is the user; in a group the sender.
+            sender = message.chat_id if message.chat_id > 0 else message.user_id
+            if sender not in self._users:
+                _LOGGER.debug("Ignoring message from someone outside the bot users")
+                return False
 
         if message.chat_id >= 0:
             return True

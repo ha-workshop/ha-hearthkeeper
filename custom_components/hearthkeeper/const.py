@@ -28,6 +28,11 @@ CONF_MAX_VOICE_SECONDS: Final = "max_voice_seconds"
 # Telegram clients can reach (for example a tunnel in front of Home Assistant).
 CONF_WEBAPP_URL: Final = "webapp_url"
 
+# Connection plugins: GitHub repositories (``owner/repo`` or
+# ``owner/repo@ref``) with a ``connection.json`` at the root, added the way
+# HACS adds custom repositories.
+CONF_CONNECTION_REPOS: Final = "connection_repositories"
+
 # Briefing. Sources are entity ids picked in the options flow, so the same
 # calendars, weather entity and mail sensors the user already sees in Home
 # Assistant feed the Telegram summary.
@@ -38,6 +43,11 @@ CONF_BRIEF_WEATHER: Final = "brief_weather"
 CONF_BRIEF_MAIL: Final = "brief_mail"
 CONF_BRIEF_HOME: Final = "brief_home"
 CONF_BRIEF_CHATS: Final = "brief_chats"
+# Telegram users who may use the bot and the Mini App; empty means everyone
+# the core Telegram integration already lets through.
+CONF_USERS: Final = "users"
+# Telegram users who may change the shared sources from the Mini App.
+CONF_ADMINS: Final = "admins"
 CONF_QUIET_START: Final = "quiet_start"
 CONF_QUIET_END: Final = "quiet_end"
 
@@ -53,7 +63,9 @@ REPLY_MODES: Final = (REPLY_MODE_TEXT, REPLY_MODE_VOICE, REPLY_MODE_BOTH)
 # a morning one with the plan for the day and an evening one with the results.
 BRIEFING_MORNING: Final = "morning"
 BRIEFING_EVENING: Final = "evening"
-BRIEFING_KINDS: Final = (BRIEFING_MORNING, BRIEFING_EVENING)
+# A scheduled mail digest: the same text as /mail, at a time of the user's.
+BRIEFING_MAIL: Final = "mail"
+BRIEFING_KINDS: Final = (BRIEFING_MORNING, BRIEFING_EVENING, BRIEFING_MAIL)
 MAX_BRIEFINGS: Final = 5
 
 LANGUAGES: Final = ("ru", "en")
@@ -65,6 +77,9 @@ DEFAULT_MAX_VOICE_SECONDS: Final = 120
 DEFAULT_ALLOW_CLOUD_FOR_MAIL: Final = False
 DEFAULT_BRIEF_ENABLED: Final = False
 DEFAULT_BRIEF_TIME: Final = "08:00"
+# Every new private chat starts with its own morning briefing at this time;
+# the user changes or turns it off in the Mini App.
+NEW_USER_BRIEF_TIME: Final = "09:00"
 DEFAULT_KEEP_AUDIO: Final = False
 DEFAULT_BRIEF_HOME: Final = True
 DEFAULT_QUIET_START: Final = "23:00"
@@ -79,6 +94,7 @@ DEFAULT_OPTIONS: Final[dict[str, object]] = {
     CONF_MAX_VOICE_SECONDS: DEFAULT_MAX_VOICE_SECONDS,
     CONF_ALLOW_CLOUD_FOR_MAIL: DEFAULT_ALLOW_CLOUD_FOR_MAIL,
     CONF_WEBAPP_URL: None,
+    CONF_CONNECTION_REPOS: (),
     CONF_BRIEF_ENABLED: DEFAULT_BRIEF_ENABLED,
     CONF_BRIEF_TIME: DEFAULT_BRIEF_TIME,
     CONF_BRIEF_CALENDARS: (),
@@ -86,6 +102,8 @@ DEFAULT_OPTIONS: Final[dict[str, object]] = {
     CONF_BRIEF_MAIL: (),
     CONF_BRIEF_HOME: DEFAULT_BRIEF_HOME,
     CONF_BRIEF_CHATS: (),
+    CONF_ADMINS: (),
+    CONF_USERS: (),
     CONF_QUIET_START: DEFAULT_QUIET_START,
     CONF_QUIET_END: DEFAULT_QUIET_END,
 }

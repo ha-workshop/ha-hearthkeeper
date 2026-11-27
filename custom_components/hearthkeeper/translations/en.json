@@ -37,7 +37,11 @@
           "brief_home": "Home status",
           "keep_audio": "Keep original audio",
           "quiet_start": "Quiet hours start (23:00)",
-          "quiet_end": "Quiet hours start (07:00)"
+          "quiet_end": "Quiet hours start (07:00)",
+          "admins": "Mini App admins",
+          "connection_repositories": "Connection plugins",
+          "brief_chats": "Who gets the shared briefing",
+          "users": "Bot users"
         },
         "data_description": {
           "pipeline_id": "Assist pipeline from Settings > Voice assistants. It already holds the conversation agent, STT, TTS and language. Choose none to echo messages back.",
@@ -55,12 +59,17 @@
           "brief_home": "Show lights, open doors and windows, and active climate.",
           "keep_audio": "Keep the original audio sent by the user after processing. Off by default: messages are deleted after transcription.",
           "quiet_start": "Start of quiet hours (e.g. 23:00). During quiet hours the scheduled briefing and reminders are suppressed.",
-          "quiet_end": "End of quiet hours (e.g. 07:00)."
+          "quiet_end": "End of quiet hours (e.g. 07:00).",
+          "admins": "Telegram user IDs that may change the shared weather, calendars, mailboxes and shopping list from the Mini App. Leave empty to change them here only.",
+          "connection_repositories": "GitHub repositories with a connection.json at the root, as owner/repo or owner/repo@branch. Admins can also add them in the Mini App.",
+          "brief_chats": "Telegram IDs that get the household morning briefing from these options. It goes only to people who have not set up their own briefings in the Mini App. Leave empty to send it to every private chat. The briefing service without a chat ID also sends here.",
+          "users": "Telegram IDs of the people who may use the bot and the Mini App. Leave empty to allow everyone the Telegram integration lets through; a person must be allowed there too."
         }
       }
     },
     "error": {
-      "invalid_webapp_url": "Use an HTTPS address without a query or fragment."
+      "invalid_webapp_url": "Use an HTTPS address without a query or fragment.",
+      "invalid_connection_repo": "Use owner/repo or owner/repo@branch for connection plugins."
     }
   },
   "selector": {
